@@ -1,2 +1,5 @@
+# Poetry build
+/dist/
+
 # PyCharm/IntelliJ artifacts
 /.idea/

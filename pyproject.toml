@@ -1,0 +1,22 @@
+[project]
+name = "lockss-pybasic"
+version = "0.1.0-dev6"
+description = "Basic Python utilities"
+authors = [
+    { name = "Thib Guicherd-Callin", email = "thib@cs.stanford.edu" }
+]
+license = { text = "BSD-3-Clause" }
+readme = "README.rst"
+requires-python = ">=3.9,<4.0"
+dependencies = [
+    "pydantic (>=2.11.3,<3.0.0)"
+]
+
+[tool.poetry]
+packages = [
+    { include = "lockss", from = "src" }
+]
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
