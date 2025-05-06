@@ -32,4 +32,4 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 '''.strip()
 
-__version__ = '0.1.0-dev6'
+__version__ = '0.1.0-dev9'

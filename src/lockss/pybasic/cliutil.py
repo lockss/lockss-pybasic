@@ -29,25 +29,104 @@
 # POSSIBILITY OF SUCH DAMAGE.
 
 '''
-Utilities for command line processing.
+Command line utilities.
 '''
 
+from abc import ABC, abstractmethod
 import sys
+from typing import Any, Dict, Generic, List, TypeVar
 
 from pydantic.v1 import BaseModel, Field
+from pydantic_argparse import ArgumentParser
+
+
+class Printable(ABC):
+
+    def print(self, file=sys.stdout):
+        print(self.get_display(), file=file)
+
+    @abstractmethod
+    def get_display(self):
+        pass
+
+
+class CopyrightCommand:
+
+    @staticmethod
+    def make(copyright):
+        class CopyrightModel(Printable, BaseModel):
+            def get_display(self):
+                return copyright
+        return CopyrightModel
+
+    @staticmethod
+    def field():
+        return Field(description='print the copyright and exit')
+
+
+class LicenseCommand:
+
+    @staticmethod
+    def make(license):
+        class LicenseModel(Printable, BaseModel):
+            def get_display(self):
+                return license
+        return LicenseModel
+
+    @staticmethod
+    def field():
+        return Field(description='print the software license and exit')
+
 
 class VersionCommand:
 
     @staticmethod
     def make(version):
-        class VersionModel(BaseModel):
-
-            def print_version(self, file=sys.stdout):
-                print(version, file=file)
-                sys.exit(0)
-
+        class VersionModel(Printable, BaseModel):
+            def get_display(self):
+                return version
         return VersionModel
 
     @staticmethod
     def field():
         return Field(description='print the version number and exit')
+
+
+ModelT = TypeVar('ModelT')
+
+
+class BaseCli(Generic[ModelT], ABC):
+    args: ModelT
+    extra: Dict[str, Any]
+    parser: ArgumentParser
+
+    def __init__(self, **extra):
+        super().__init__()
+        self.extra = dict(**extra)
+
+    def run(self):
+        self.parser: ArgumentParser = ArgumentParser(model=self.extra.get('model'),
+                                                     prog=self.extra.get('prog'),
+                                                     description=self.extra.get('description'))
+        self.args = self.parser.parse_typed_args()
+        self.dispatch()
+
+    @abstractmethod
+    def dispatch(self):
+        pass
+
+
+def exactly_one(values: Dict[str, Any], *names: str):
+    if (length := len([values[name] for name in names if values[name]])) != 1:
+        raise ValueError(f'exactly one of {', '.join([option_name(name) for name in names])} is required, got {length}')
+    return values
+
+
+def one_or_more(values: Dict[str, Any], *names: str):
+    if len([values[name] for name in names if values[name]]) == 0:
+        raise ValueError(f'one or more of {', '.join([option_name(name) for name in names])} is required')
+    return values
+
+
+def option_name(name: str):
+    return f'{('-' if len(name) == 1 else '--')}{name.replace('_', '-')}'
