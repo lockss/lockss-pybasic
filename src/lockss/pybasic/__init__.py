@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+"""
+Basic Python utilities.
+"""
+
 __copyright__ = '''
 Copyright (c) 2000-2025, Board of Trustees of Leland Stanford Jr. University
 '''.strip()
@@ -32,4 +36,4 @@ ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 POSSIBILITY OF SUCH DAMAGE.
 '''.strip()
 
-__version__ = '0.1.0-dev9'
+__version__ = '0.1.0-dev13'

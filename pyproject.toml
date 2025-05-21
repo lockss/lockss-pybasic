@@ -1,6 +1,6 @@
 [project]
 name = "lockss-pybasic"
-version = "0.1.0-dev9"
+version = "0.1.0-dev13"
 description = "Basic Python utilities"
 authors = [
     { name = "Thib Guicherd-Callin", email = "thib@cs.stanford.edu" }

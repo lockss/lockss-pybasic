@@ -28,36 +28,50 @@
 # ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
 # POSSIBILITY OF SUCH DAMAGE.
 
-'''
+"""
 Command line utilities.
-'''
+"""
 
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 import sys
-from typing import Any, Dict, Generic, List, TypeVar
+from typing import Any, Dict, Generic, TypeVar
 
 from pydantic.v1 import BaseModel, Field
 from pydantic_argparse import ArgumentParser
 
 
-class Printable(ABC):
-
-    def print(self, file=sys.stdout):
-        print(self.get_display(), file=file)
+class Command(ABC, BaseModel):
 
     @abstractmethod
-    def get_display(self):
+    def action(self):
         pass
 
+
+class MethodCommand:
+
+    @staticmethod
+    def type(method: Callable[..., None]):
+        class _MethodCommand(Command):
+            def action(self):
+                method(self)
+        return _MethodCommand
+
+
+class StringCommand:
+
+    @staticmethod
+    def type(display_str: str):
+        class _StringCommand(Command):
+            def action(self, file=sys.stdout):
+                print(display_str, file=file)
+        return _StringCommand
 
 class CopyrightCommand:
 
     @staticmethod
-    def make(copyright):
-        class CopyrightModel(Printable, BaseModel):
-            def get_display(self):
-                return copyright
-        return CopyrightModel
+    def type(copyright_str: str):
+        return StringCommand.type(copyright_str)
 
     @staticmethod
     def field():
@@ -67,11 +81,8 @@ class CopyrightCommand:
 class LicenseCommand:
 
     @staticmethod
-    def make(license):
-        class LicenseModel(Printable, BaseModel):
-            def get_display(self):
-                return license
-        return LicenseModel
+    def type(license_str: str):
+        return StringCommand.type(license_str)
 
     @staticmethod
     def field():
@@ -81,11 +92,8 @@ class LicenseCommand:
 class VersionCommand:
 
     @staticmethod
-    def make(version):
-        class VersionModel(Printable, BaseModel):
-            def get_display(self):
-                return version
-        return VersionModel
+    def type(version_str: str):
+        return StringCommand.type(version_str)
 
     @staticmethod
     def field():
@@ -95,14 +103,13 @@ class VersionCommand:
 ModelT = TypeVar('ModelT')
 
 
-class BaseCli(Generic[ModelT], ABC):
-    args: ModelT
-    extra: Dict[str, Any]
-    parser: ArgumentParser
+class BaseCli(Generic[ModelT: BaseModel], ABC):
 
     def __init__(self, **extra):
         super().__init__()
-        self.extra = dict(**extra)
+        self.args: ModelT = None
+        self.parser: ArgumentParser = None
+        self.extra: Dict[str, Any] = dict(**extra)
 
     def run(self):
         self.parser: ArgumentParser = ArgumentParser(model=self.extra.get('model'),
@@ -116,17 +123,27 @@ class BaseCli(Generic[ModelT], ABC):
         pass
 
 
+def at_most_one(values: Dict[str, Any], *names: str):
+    if (length := _matchy_length(values, names)) > 1:
+        raise ValueError(f'at most one of {', '.join([option_name(name) for name in names])} is allowed, got {length}')
+    return values
+
+
 def exactly_one(values: Dict[str, Any], *names: str):
-    if (length := len([values[name] for name in names if values[name]])) != 1:
+    if (length := _matchy_length(values, names)) != 1:
         raise ValueError(f'exactly one of {', '.join([option_name(name) for name in names])} is required, got {length}')
     return values
 
 
 def one_or_more(values: Dict[str, Any], *names: str):
-    if len([values[name] for name in names if values[name]]) == 0:
+    if _matchy_length(values, names) == 0:
         raise ValueError(f'one or more of {', '.join([option_name(name) for name in names])} is required')
     return values
 
 
 def option_name(name: str):
     return f'{('-' if len(name) == 1 else '--')}{name.replace('_', '-')}'
+
+
+def _matchy_length(values: Dict[str, Any], *names: str) -> int:
+    return len([name for name in names if values.get(name)])
