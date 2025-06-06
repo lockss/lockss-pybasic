@@ -34,10 +34,17 @@ File and path utilities.
 
 from pathlib import Path, PurePath
 import sys
-from typing import Union
+from typing import List, Union
 
 
-def file_lines(fpath: Path):
+def file_lines(fpath: Path) -> List[str]:
+    """
+    Returns a list of lines from the given file, with '#' comments and leading
+    trailing whitespace removed, ignoring empty lines.
+
+    :param fpath: A ``Path`` to a file (``-`` for ``sys.stdin``).
+    :return:      A list of lines.
+    """
     f = None
     try:
         f = open(path(fpath), 'r') if fpath != '-' else sys.stdin
@@ -47,7 +54,16 @@ def file_lines(fpath: Path):
             f.close()
 
 
-def path(purepath_or_string: Union[PurePath, str]):
+def path(purepath_or_string: Union[PurePath, str]) -> Path:
+    """
+    Returns the given ``PurePath`` (or if given a string, the ``Path`` created
+    from that string), expanded with ``expanduser()`` and resolved with
+    ``resolve()``.
+
+    :param purepath_or_string: A ``PurePath`` (or a ``str`` from which to create
+                               a ``Path``).
+    :return:                   An expanded and resolved ``Path``.
+    """
     if not issubclass(type(purepath_or_string), PurePath):
         purepath_or_string = Path(purepath_or_string)
     return purepath_or_string.expanduser().resolve()
