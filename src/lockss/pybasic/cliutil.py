@@ -89,8 +89,8 @@ class BaseCli(Generic[BaseModelT]):
                       the program.
         """
         super().__init__()
-        self.args: Optional[BaseModelT] = None
-        self.parser: Optional[ArgumentParser] = None
+        self._args: Optional[BaseModelT] = None
+        self._parser: Optional[ArgumentParser] = None
         self.extra: Dict[str, Any] = dict(**extra)
 
     def run(self) -> None:
@@ -107,10 +107,10 @@ class BaseCli(Generic[BaseModelT]):
 
         :return: Nothing.
         """
-        self.parser: ArgumentParser = ArgumentParser(model=self.extra.get('model'),
-                                                     prog=self.extra.get('prog'),
-                                                     description=self.extra.get('description'))
-        self.args = self.parser.parse_typed_args()
+        self._parser: ArgumentParser = ArgumentParser(model=self.extra.get('model'),
+                                                      prog=self.extra.get('prog'),
+                                                      description=self.extra.get('description'))
+        self._args = self._parser.parse_typed_args()
         self.dispatch()
 
     def dispatch(self) -> None:
@@ -121,18 +121,18 @@ class BaseCli(Generic[BaseModelT]):
 
         :return: Nothing.
         """
-        field_names = self.args.__class__.__fields__.keys()
+        field_names = self._args.__class__.__fields__.keys()
         for field_name in field_names:
-            field_value = getattr(self.args, field_name)
+            field_value = getattr(self._args, field_name)
             if issubclass(type(field_value), BaseModel):
                 func = getattr(self, f'_{field_name}')
                 if callable(func):
                     func(field_value)
                 else:
-                    self.parser.exit(1, f'internal error: no _{field_name} callable for the {field_name} command')
+                    self._parser.exit(1, f'internal error: no _{field_name} callable for the {field_name} command')
                 break
         else:
-            self.parser.error(f'unknown command; expected one of {', '.join(field_names)}')
+            self._parser.error(f'unknown command; expected one of {', '.join(field_names)}')
 
 
 def at_most_one_from_enum(model_cls, values: Dict[str, Any], enum_cls) -> Dict[str, Any]:
