@@ -32,9 +32,7 @@
 Utilities to work with 'tabulate'.
 """
 
-
 from enum import Enum
-
 
 from pydantic.v1 import BaseModel, Field, validator
 import tabulate

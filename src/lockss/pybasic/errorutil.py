@@ -34,9 +34,12 @@ Error and exception utilities.
 
 class InternalError(RuntimeError):
     """
-    A simple ``RuntimeError`` with the message ``internal error``, intended for
-    situations that should never occur.
+    A simple no-arg ``RuntimeError`` with the message ``internal error``,
+    intended for situations that should never occur.
     """
 
-    def __init__(self, *args: object) -> None:
+    def __init__(self) -> None:
+        """
+        Constructs a new ``InternalError`` instance.
+        """
         super().__init__('internal error')

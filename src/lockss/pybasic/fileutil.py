@@ -40,10 +40,12 @@ from typing import List, Union
 def file_lines(fpath: Path) -> List[str]:
     """
     Returns a list of lines from the given file, with '#' comments and leading
-    trailing whitespace removed, ignoring empty lines.
+    and trailing whitespace removed, ignoring empty lines.
 
-    :param fpath: A ``Path`` to a file (``-`` for ``sys.stdin``).
-    :return:      A list of lines.
+    :param fpath: A ``Path`` to a file, ``-`` for ``sys.stdin``.
+    :type fpath: Path
+    :return: A list of processed lines.
+    :rtype: List[str]
     """
     f = None
     try:
@@ -62,7 +64,9 @@ def path(purepath_or_string: Union[PurePath, str]) -> Path:
 
     :param purepath_or_string: A ``PurePath`` (or a ``str`` from which to create
                                a ``Path``).
-    :return:                   An expanded and resolved ``Path``.
+    :type purepath_or_string: Union[PurePath, str]
+    :return: An expanded and resolved ``Path``.
+    :rtype: Path
     """
     if not issubclass(type(purepath_or_string), PurePath):
         purepath_or_string = Path(purepath_or_string)

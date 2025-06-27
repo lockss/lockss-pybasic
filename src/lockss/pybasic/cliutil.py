@@ -32,28 +32,42 @@
 Command line utilities.
 """
 
-from abc import ABC, abstractmethod
 from collections.abc import Callable
 import sys
 from typing import Any, Dict, Generic, Optional, TypeVar
 
-from pydantic.v1 import BaseModel, Field
+from pydantic.v1 import BaseModel
 from pydantic_argparse import ArgumentParser
+from pydantic_argparse.argparse.actions import SubParsersAction
+from rich_argparse import RichHelpFormatter
 
 
 class ActionCommand(Callable, BaseModel):
     """
-    Base class for a Pydantic-Argparse command
+    Base class for a pydantic-argparse style command.
     """
     pass
 
 
 class StringCommand(ActionCommand):
+    """
+    A pydantic-argparse style command that prints a string.
+
+    Example of use:
+
+    .. code-block:: python
+
+       class MyCliModel(BaseModel):
+           copyright: Optional[StringCommand.type(my_copyright_string)] = Field(description=COPYRIGHT_DESCRIPTION)
+
+    See also the convenience constants ``COPYRIGHT_DESCRIPTION``,
+    ``LICENSE_DESCRIPTION``, and ``VERSION_DESCRIPTION``.
+    """
 
     @staticmethod
     def type(display_str: str):
         class _StringCommand(StringCommand):
-            def __call__(self, file=sys.stdout):
+            def __call__(self, file=sys.stdout, **kwargs):
                 print(display_str, file=file)
         return _StringCommand
 
@@ -78,20 +92,21 @@ class BaseCli(Generic[BaseModelT]):
     method named ``_x_y_z``.
     """
 
-    def __init__(self, **extra):
+    def __init__(self, **kwargs):
         """
-        Makes a new BaseCli instance.
+        Constructs a new ``BaseCli`` instance.
 
-        :param extra: Keyword arguments. Must include ``model``, the
-                      ``BaseModel`` type corresponding to ``BaseModelT``. Must
-                      include ``prog``, the command-line name of the program.
-                      Must include ``description``, the description string of
-                      the program.
+        :param kwargs: Keyword arguments. Must include ``model``, the
+                       ``BaseModel`` type corresponding to ``BaseModelT``. Must
+                       include ``prog``, the command-line name of the program.
+                       Must include ``description``, the description string of
+                       the program.
+        :type kwargs: Dict[str, Any]
         """
         super().__init__()
         self._args: Optional[BaseModelT] = None
         self._parser: Optional[ArgumentParser] = None
-        self.extra: Dict[str, Any] = dict(**extra)
+        self.extra: Dict[str, Any] = dict(**kwargs)
 
     def run(self) -> None:
         """
@@ -101,15 +116,14 @@ class BaseCli(Generic[BaseModelT]):
            ``prog`` and ``description`` from the constructor keyword
            arguments in ``self.parser``.
 
-        *  Stores the Pydantic-Argparse parsed arguemnts in ``self.args``.
+        *  Stores the Pydantic-Argparse parsed arguments in ``self.args``.
 
         *  Calls ``dispatch()``.
-
-        :return: Nothing.
         """
         self._parser: ArgumentParser = ArgumentParser(model=self.extra.get('model'),
                                                       prog=self.extra.get('prog'),
                                                       description=self.extra.get('description'))
+        self._initialize_rich_argparse()
         self._args = self._parser.parse_typed_args()
         self.dispatch()
 
@@ -118,8 +132,6 @@ class BaseCli(Generic[BaseModelT]):
         Dispatches from the first field ``x_y_z`` in ``self.args`` that is a
         command (i.e. whose value derives from ``BaseModel``) to a method
         called ``_x_y_z``.
-
-        :return: Nothing.
         """
         field_names = self._args.__class__.__fields__.keys()
         for field_name in field_names:
@@ -133,6 +145,35 @@ class BaseCli(Generic[BaseModelT]):
                 break
         else:
             self._parser.error(f'unknown command; expected one of {', '.join(field_names)}')
+
+    def _initialize_rich_argparse(self) -> None:
+        """
+        Initializes `rich-argparse <https://pypi.org/project/rich-argparse/>`_
+        for this instance.
+        """
+        self._initialize_rich_argparse_styles()
+        def __add_formatter_class(container):
+            container.formatter_class = RichHelpFormatter
+            if hasattr(container, '_actions'):
+                for action in container._actions:
+                    if issubclass(type(action), SubParsersAction):
+                        for subaction in action.choices.values():
+                            __add_formatter_class(subaction)
+        __add_formatter_class(self._parser)
+
+    def _initialize_rich_argparse_styles(self) -> None:
+        # See https://github.com/hamdanal/rich-argparse#customize-the-colors
+        for cls in [RichHelpFormatter]:
+            cls.styles.update({
+                'argparse.args': 'bold cyan',  # for positional-arguments and --options (e.g "--help")
+                'argparse.groups': 'underline dark_orange',  # for group names (e.g. "positional arguments")
+                'argparse.help': 'default',  # for argument's help text (e.g. "show this help message and exit")
+                'argparse.metavar': 'italic dark_cyan',  # for metavariables (e.g. "FILE" in "--file FILE")
+                'argparse.prog': 'bold grey50',  # for %(prog)s in the usage (e.g. "foo" in "Usage: foo [options]")
+                'argparse.syntax': 'bold',  # for highlights of back-tick quoted text (e.g. "`some text`")
+                'argparse.text': 'default',  # for descriptions, epilog, and --version (e.g. "A program to foo")
+                'argparse.default': 'italic',  # for %(default)s in the help (e.g. "Value" in "(default: Value)")
+            })
 
 
 def at_most_one_from_enum(model_cls, values: Dict[str, Any], enum_cls) -> Dict[str, Any]:
@@ -193,7 +234,7 @@ def one_or_more(values: Dict[str, Any], *names: str):
     return values
 
 
-def option_name(name: str):
+def option_name(name: str) -> str:
     return f'{('-' if len(name) == 1 else '--')}{name.replace('_', '-')}'
 
 
