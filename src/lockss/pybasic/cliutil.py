@@ -129,22 +129,25 @@ class BaseCli(Generic[BaseModelT]):
 
     def dispatch(self) -> None:
         """
-        Dispatches from the first field ``x_y_z`` in ``self.args`` that is a
+        Dispatches from the first field ``x_y_z`` in ``self._args`` that is a
         command (i.e. whose value derives from ``BaseModel``) to a method
         called ``_x_y_z``.
         """
-        field_names = self._args.__class__.__fields__.keys()
+        self._dispatch_recursive(self._args, [])
+
+    def _dispatch_recursive(self, base_model: BaseModel, subcommands: list[str]) -> None:
+        field_names = base_model.__class__.__fields__.keys()
         for field_name in field_names:
-            field_value = getattr(self._args, field_name)
+            field_value = getattr(base_model, field_name)
             if issubclass(type(field_value), BaseModel):
-                func = getattr(self, f'_{field_name}')
-                if callable(func):
-                    func(field_value)
-                else:
-                    self._parser.exit(1, f'internal error: no _{field_name} callable for the {field_name} command')
-                break
+                self._dispatch_recursive(field_value, [*subcommands, field_name])
+                return
+        func_name = ''.join(f'_{sub}' for sub in subcommands)
+        func = getattr(self, func_name)
+        if callable(func):
+            func(base_model) # FIXME?
         else:
-            self._parser.error(f'unknown command; expected one of {', '.join(field_names)}')
+            self._parser.exit(1, f'internal error: no {func_name} callable for the {" ".join(sub for sub in subcommands)} command')
 
     def _initialize_rich_argparse(self) -> None:
         """
