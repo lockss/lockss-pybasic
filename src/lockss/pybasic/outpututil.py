@@ -46,7 +46,7 @@ DEFAULT_OUTPUT_FORMAT = 'simple' # from tabulate
 
 
 class OutputFormatOptions(BaseModel):
-    output_format: Optional[str] = Field(DEFAULT_OUTPUT_FORMAT, description=f'[output] set the output format; choices: {', '.join(OutputFormat.__members__.keys())}')
+    output_format: Optional[str] = Field(DEFAULT_OUTPUT_FORMAT, description=f'[output] set the output format; choices: {", ".join(OutputFormat.__members__.keys())}')
 
     @validator('output_format')
     def _validate_output_format(cls, val: str):
@@ -54,4 +54,4 @@ class OutputFormatOptions(BaseModel):
             _ = OutputFormat[val]
             return val
         except KeyError:
-            raise ValueError(f'must be one of {', '.join(OutputFormat.__members__.keys())}; got {val}')
+            raise ValueError(f'must be one of {", ".join(OutputFormat.__members__.keys())}; got {val}')

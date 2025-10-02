@@ -144,7 +144,7 @@ class BaseCli(Generic[BaseModelT]):
                     self._parser.exit(1, f'internal error: no _{field_name} callable for the {field_name} command')
                 break
         else:
-            self._parser.error(f'unknown command; expected one of {', '.join(field_names)}')
+            self._parser.error(f'unknown command; expected one of {", ".join(field_names)}')
 
     def _initialize_rich_argparse(self) -> None:
         """
@@ -192,7 +192,7 @@ def at_most_one_from_enum(model_cls, values: Dict[str, Any], enum_cls) -> Dict[s
     enum_names = [field_name for field_name, model_field in model_cls.__fields__.items() if model_field.field_info.extra.get('enum') == enum_cls]
     ret = [field_name for field_name in enum_names if values.get(field_name)]
     if (length := len(ret)) > 1:
-        raise ValueError(f'at most one of {', '.join([option_name(enum_name) for enum_name in enum_names])} is allowed, got {length} ({', '.join([option_name(enum_name) for enum_name in ret])})')
+        raise ValueError(f'at most one of {", ".join([option_name(enum_name) for enum_name in enum_names])} is allowed, got {length} ({", ".join([option_name(enum_name) for enum_name in ret])})')
     return values
 
 
@@ -218,24 +218,24 @@ def get_from_enum(model_inst, enum_cls, default=None):
 
 def at_most_one(values: Dict[str, Any], *names: str):
     if (length := _matchy_length(values, *names)) > 1:
-        raise ValueError(f'at most one of {', '.join([option_name(name) for name in names])} is allowed, got {length}')
+        raise ValueError(f'at most one of {", ".join([option_name(name) for name in names])} is allowed, got {length}')
     return values
 
 
 def exactly_one(values: Dict[str, Any], *names: str):
     if (length := _matchy_length(values, *names)) != 1:
-        raise ValueError(f'exactly one of {', '.join([option_name(name) for name in names])} is required, got {length}')
+        raise ValueError(f'exactly one of {", ".join([option_name(name) for name in names])} is required, got {length}')
     return values
 
 
 def one_or_more(values: Dict[str, Any], *names: str):
     if _matchy_length(values, *names) == 0:
-        raise ValueError(f'one or more of {', '.join([option_name(name) for name in names])} is required')
+        raise ValueError(f'one or more of {", ".join([option_name(name) for name in names])} is required')
     return values
 
 
 def option_name(name: str) -> str:
-    return f'{('-' if len(name) == 1 else '--')}{name.replace('_', '-')}'
+    return f'{("-" if len(name) == 1 else "--")}{name.replace("_", "-")}'
 
 
 def _matchy_length(values: Dict[str, Any], *names: str) -> int:
