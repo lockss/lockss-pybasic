@@ -2,8 +2,8 @@
 lockss-pybasic
 ==============
 
-.. |RELEASE| replace:: 0.1.0
-.. |RELEASE_DATE| replace:: 2025-07-01
+.. |RELEASE| replace:: 0.1.1
+.. |RELEASE_DATE| replace:: 2025-10-02
 
 **Latest release:** |RELEASE| (|RELEASE_DATE|)
 
