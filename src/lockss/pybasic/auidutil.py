@@ -36,7 +36,7 @@ and related utility classes in the LOCKSS lockss-core library.
 """
 
 import urllib.parse
-from typing import Dict, Optional
+from typing import Dict
 
 
 class InvalidAuidError(ValueError):
@@ -60,7 +60,7 @@ class AuidGenerator:
         >>> params = {"base_url": "http://example.com/", "year": "2023"}
         >>> auid = AuidGenerator.generate_auid(plugin_id, params)
         >>> print(auid)
-        org|lockss|plugin|simulated|SimulatedPlugin&base_url~http%3A%2F%2Fexample.com%2F&year~2023
+        org|lockss|plugin|simulated|SimulatedPlugin&base_url~http%3A%2F%2Fexample%2Ecom%2F&year~2023
     """
 
     @staticmethod
@@ -103,6 +103,18 @@ class AuidGenerator:
             raise ValueError("plugin_key cannot be empty")
         return plugin_key.replace("|", ".")
 
+    # Characters that don't need encoding - matches Java PropKeyEncoder exactly
+    # See lockss-core PropKeyEncoder.java lines 46-62
+    _DONT_NEED_ENCODING = set(
+        'abcdefghijklmnopqrstuvwxyz'
+        'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+        '0123456789'
+        ' '  # Space is converted to '+' in encode()
+        '-'
+        '_'
+        '*'
+    )
+
     @staticmethod
     def encode_component(s: str) -> str:
         """
@@ -111,9 +123,13 @@ class AuidGenerator:
         Port of PropKeyEncoder.encode() from lockss-core.
 
         This method encodes strings using URL encoding with the following rules:
-        - Alphanumeric characters, hyphens, underscores, periods, and asterisks are not encoded
+        - Alphanumeric characters (a-z, A-Z, 0-9) are not encoded
+        - Hyphens (-), underscores (_), and asterisks (*) are not encoded
         - Spaces are encoded as '+'
-        - All other characters are percent-encoded with uppercase hex digits
+        - All other characters (including periods) are percent-encoded with uppercase hex digits
+
+        Note: This differs from standard URL encoding (RFC 3986) which treats
+        periods (.) as unreserved. Java's PropKeyEncoder encodes periods.
 
         Args:
             s: String to encode
@@ -123,28 +139,25 @@ class AuidGenerator:
 
         Example:
             >>> AuidGenerator.encode_component("http://example.com/")
-            'http%3A%2F%2Fexample.com%2F'
+            'http%3A%2F%2Fexample%2Ecom%2F'
         """
         if not s:
             return ""
 
-        # Use quote_plus which converts spaces to '+'
-        # safe='-_.~' preserves unreserved characters per RFC 3986
-        # We use safe='' to match Java's PropKeyEncoder behavior more closely
-        encoded = urllib.parse.quote_plus(s, safe='')
-
-        # Convert to uppercase hex (urllib uses lowercase by default)
         result = []
-        i = 0
-        while i < len(encoded):
-            if encoded[i] == '%' and i + 2 < len(encoded):
-                result.append('%')
-                result.append(encoded[i+1].upper())
-                result.append(encoded[i+2].upper())
-                i += 3
+        # Encode string to UTF-8 bytes, matching Java's OutputStreamWriter behavior
+        for char in s:
+            if char in AuidGenerator._DONT_NEED_ENCODING:
+                if char == ' ':
+                    result.append('+')
+                else:
+                    result.append(char)
             else:
-                result.append(encoded[i])
-                i += 1
+                # Encode character to UTF-8 bytes and percent-encode each byte
+                char_bytes = char.encode('utf-8')
+                for byte in char_bytes:
+                    result.append('%')
+                    result.append(format(byte, '02X'))
 
         return ''.join(result)
 
@@ -165,7 +178,7 @@ class AuidGenerator:
         """
         if not s:
             return ""
-        return urllib.parse.unquote_plus(s)
+        return urllib.parse.unquote_plus(s, errors="strict")
 
     @staticmethod
     def props_to_canonical_encoded_string(props: Dict[str, str]) -> str:
@@ -231,8 +244,10 @@ class AuidGenerator:
 
         for pair in pairs:
             if "~" not in pair:
-                continue
+                raise ValueError("Missing tilde in key-value pair")
             key_encoded, val_encoded = pair.split("~", 1)
+            if "~" in val_encoded:
+                raise ValueError("Additional tilde in key-value pair")
             key = AuidGenerator.decode_component(key_encoded)
             val = AuidGenerator.decode_component(val_encoded)
             props[key] = val
