@@ -32,9 +32,12 @@
 Command line utilities.
 """
 
-from typing import Optional
+from pathlib import Path
+from typing import Any, Optional
 
 import click
+from click_extra import ExtraContext, HelpExtraFormatter, Style
+from click_extra.colorize import default_theme
 
 
 def click_path(spec: Optional[str]) -> click.Path:
@@ -45,7 +48,7 @@ def click_path(spec: Optional[str]) -> click.Path:
     executable = False
     exists = False
     file_okay = True
-    path_type = pathlib.Path
+    path_type = Path
     readable = True
     resolve_path = False
     writable = False
@@ -71,7 +74,7 @@ def click_path(spec: Optional[str]) -> click.Path:
         elif char == 'p':
             if 's' in spec:
                 raise ValueError(f'"p" and "s" are mutually exclusive: {spec}')
-            path_type = pathlib.Path
+            path_type = Path
         elif char == 'r':
             readable = True
         elif char == 's':
@@ -97,3 +100,21 @@ def click_path(spec: Optional[str]) -> click.Path:
                       readable=readable,
                       resolve_path=resolve_path,
                       writable=writable)
+
+
+def compose_decorators(*decorators):
+    def wrapped(decorated):
+        for dec in reversed(decorators):
+            decorated = dec(decorated)
+        return decorated
+    return wrapped
+
+
+def make_extra_context_settings() -> dict[str, Any]:
+    return ExtraContext.settings(
+        formatter_settings=HelpExtraFormatter.settings(
+            theme=default_theme.with_(
+                invoked_command=Style(bold=True)
+            )
+        )
+    )
