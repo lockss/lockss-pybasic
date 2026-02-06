@@ -31,18 +31,21 @@
 """
 Command line utilities.
 """
-
+import pathlib
 from collections.abc import Callable
 import sys
 from typing import Any, Dict, Generic, Optional, TypeVar
 
-from pydantic.v1 import BaseModel
+import click
+from pydantic.v1 import BaseModel as BaseModel1
 from pydantic_argparse import ArgumentParser
 from pydantic_argparse.argparse.actions import SubParsersAction
 from rich_argparse import RichHelpFormatter
 
+from .fileutil import path
 
-class ActionCommand(Callable, BaseModel):
+
+class ActionCommand(Callable, BaseModel1):
     """
     Base class for a pydantic-argparse style command.
     """
@@ -77,7 +80,7 @@ LICENSE_DESCRIPTION = 'print the software license and exit'
 VERSION_DESCRIPTION = 'print the version number and exit'
 
 
-BaseModelT = TypeVar('BaseModelT', bound=BaseModel)
+BaseModelT = TypeVar('BaseModelT', bound=BaseModel1)
 
 
 class BaseCli(Generic[BaseModelT]):
@@ -135,11 +138,11 @@ class BaseCli(Generic[BaseModelT]):
         """
         self._dispatch_recursive(self._args, [])
 
-    def _dispatch_recursive(self, base_model: BaseModel, subcommands: list[str]) -> None:
+    def _dispatch_recursive(self, base_model: BaseModel1, subcommands: list[str]) -> None:
         field_names = base_model.__class__.__fields__.keys()
         for field_name in field_names:
             field_value = getattr(base_model, field_name)
-            if issubclass(type(field_value), BaseModel):
+            if issubclass(type(field_value), BaseModel1):
                 self._dispatch_recursive(field_value, [*subcommands, field_name])
                 return
         func_name = ''.join(f'_{sub}' for sub in subcommands)
@@ -237,7 +240,7 @@ def one_or_more(values: Dict[str, Any], *names: str):
     return values
 
 
-def option_name(model_cls: type[BaseModel], name: str) -> str:
+def option_name(model_cls: type[BaseModel1], name: str) -> str:
     if (info := model_cls.__fields__.get(name)) is None:
         raise RuntimeError(f'invalid name: {name}')
     if alias := info.alias:
@@ -247,3 +250,69 @@ def option_name(model_cls: type[BaseModel], name: str) -> str:
 
 def _matchy_length(values: Dict[str, Any], *names: str) -> int:
     return len([name for name in names if values.get(name)])
+
+
+def click_path(spec: Optional[str]) -> click.Path:
+    if spec is None:
+        spec = ''
+    allow_dash = False
+    dir_okay = True
+    executable = False
+    exists = False
+    file_okay = True
+    path_type = pathlib.Path
+    readable = True
+    resolve_path = False
+    writable = False
+    for char in spec:
+        if char == 'd':
+            if 'f' in spec:
+                raise ValueError(f'"d" and "f" are mutually exclusive: {spec}')
+            dir_okay = True
+            file_okay = False
+        elif char == 'e':
+            if 'E' in spec:
+                raise ValueError(f'"e" and "E" are mutually exclusive: {spec}')
+            exists = True
+        elif char == 'E':
+            if 'e' in spec:
+                raise ValueError(f'"E" and "e" are mutually exclusive: {spec}')
+            exists = True
+        elif char == 'f':
+            if 'd' in spec:
+                raise ValueError(f'"f" and "d" are mutually exclusive: {spec}')
+            dir_okay = False
+            file_okay = True
+        # elif char == 'p':
+        #     if 'P' in spec or 's' in spec:
+        #         raise ValueError(f'"p", "P", and "s" are mutually exclusive: {spec}')
+        #     path_type = path
+        elif char == 'P':
+            if 'p' in spec or 's' in spec:
+                raise ValueError(f'"P", "p", and "s" are mutually exclusive: {spec}')
+            path_type = pathlib.Path
+        elif char == 'r':
+            readable = True
+        elif char == 's':
+            if 'p' in spec or 'P' in spec:
+                raise ValueError(f'"s", "p", and "P" are mutually exclusive: {spec}')
+            path_type = str
+        elif char == 'w':
+            writable = True
+        elif char == 'x':
+            executable = True
+        elif char == 'z':
+            resolve_path = True
+        elif char == '-':
+            allow_dash = True
+        else:
+            raise ValueError(f'unknown specification character "{char}": {spec}')
+    return click.Path(allow_dash=allow_dash,
+                      dir_okay=dir_okay,
+                      executable=executable,
+                      exists=exists,
+                      file_okay=file_okay,
+                      path_type=path_type,
+                      readable=readable,
+                      resolve_path=resolve_path,
+                      writable=writable)
