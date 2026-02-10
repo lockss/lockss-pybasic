@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 import click
+from click.types import ParamType, IntRange
 from click_extra import ExtraContext, HelpExtraFormatter, Style
 from click_extra.colorize import default_theme
 
@@ -118,3 +119,15 @@ def make_extra_context_settings() -> dict[str, Any]:
             )
         )
     )
+
+
+PositiveInt: ParamType = IntRange(min=1, max=None)
+
+
+NonNegativeInt: ParamType = IntRange(min=0, max=None)
+
+
+NegativeInt: ParamType = IntRange(min=None, max=-1)
+
+
+NonPositiveInt: ParamType = IntRange(min=None, max=0)
