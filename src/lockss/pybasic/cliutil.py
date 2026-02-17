@@ -131,3 +131,6 @@ NegativeInt: ParamType = IntRange(min=None, max=-1)
 
 
 NonPositiveInt: ParamType = IntRange(min=None, max=0)
+
+
+UInt16: ParamType = IntRange(min=0, max=65535)
