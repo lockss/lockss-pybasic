@@ -42,6 +42,61 @@ from click_extra.colorize import default_theme
 
 
 def click_path(spec: Optional[str]) -> click.Path:
+    """
+    Generates a ``click.Path`` based on a specification string.
+
+    The specification string can contain the following specifier characters:
+
+    .. list-table::
+       :header-rows: 1
+
+       *  *  Specifier
+          *  Present
+          *  Mutually exclusive with
+       *  *  ``f``
+          *  Must be a file
+          *  ``d`` [*]
+       *  *  ``d``
+          *  Must be a directory
+          *  ``f`` [*]
+       *  *  ``e``
+          *  File or directory must exist
+          *  ``E``
+       *  *  ``E``
+          *  File or directory may or may not exist, but if it does not exist,
+             other checks are skipped (default)
+          *  ``e``
+       *  *  ``r``
+          *  File or directory must be readable
+          *
+       *  *  ``w``
+          *  File or directory must be writable
+          *
+       *  *  ``x``
+          *  File or directory must be executable
+          *
+       *  *  ``p``
+          *  Resulting path will be ``pathlib.Path`` (default)
+          *  ``s``
+       *  *  ``s``
+          *  Resulting path will be ``str``
+          *  ``p``
+       *  *  ``-``
+          *  Path is allowed to be ``-``
+          *
+       *  *  ``z``
+          *  Path will be absolute and resolved, with ``pathlib.Path.resolve``
+          *
+
+    When two mutual exclusive specifiers are present, ``ValueError`` is raised.
+
+    :param spec: A specification string.
+    :type spec: str
+    :return: A ``click.Path``.
+    :rtype: click.Path
+    :raises ValueError: If two mutually exclusive specifiers are present in the
+                        specification string.
+    """
     if spec is None:
         spec = ''
     allow_dash = False
@@ -66,7 +121,7 @@ def click_path(spec: Optional[str]) -> click.Path:
         elif char == 'E':
             if 'e' in spec:
                 raise ValueError(f'"E" and "e" are mutually exclusive: {spec}')
-            exists = True
+            exists = False
         elif char == 'f':
             if 'd' in spec:
                 raise ValueError(f'"f" and "d" are mutually exclusive: {spec}')
@@ -103,6 +158,16 @@ def click_path(spec: Optional[str]) -> click.Path:
                       writable=writable)
 
 
+#: Composes the given decorators, so that
+#:     @compose_decorators(f, g, h)
+#:     def foo():
+#:         pass
+#: is equivalent to:
+#:     @f
+#      @g
+#      @h
+#:     def foo():
+#:         pass
 def compose_decorators(*decorators):
     def wrapped(decorated):
         for dec in reversed(decorators):
@@ -113,12 +178,35 @@ def compose_decorators(*decorators):
 
 def make_table_format_option(switches: Union[str, tuple[str, ...]] = ('--table-format', '-T'),
                              default: TableFormat = TableFormat.SIMPLE):
+    """
+    Makes an equivalent of ``click_Extra.table_format_option`` with the given
+    command line switches and the given table format default.
+
+    The standard ``click_Extra.table_format_option`` attaches to the top-level
+    command only.
+
+    :param switches: A string or tuple of strings for the command line switches.
+    :type switches: Union[str, tuple[str, ...]]
+    :param default: A ``click_extra.TableFormat`` default.
+    :type default: TableFormat
+    :return: A remixed ``click_Extra.table_format_option``.
+    :rtype:
+    """
     if type(switches) == str:
         switches = (switches,)
     return option(*switches, type=EnumChoice(TableFormat, choice_source=ChoiceSource.VALUE), default=default, show_default=True, help='Set the rendering of tables to the given style.')
 
 
 def make_extra_context_settings() -> dict[str, Any]:
+    """
+    Makes a custom ``click_Extra.ExtraContext`` with essential changes.
+
+    Currently, the only change is that the help formatter styles the invoked
+    command in bold.
+
+    :return: A custom ``click_Extra.ExtraContext``.
+    :rtype: dict[str, Any]
+    """
     return ExtraContext.settings(
         formatter_settings=HelpExtraFormatter.settings(
             theme=default_theme.with_(
@@ -128,16 +216,21 @@ def make_extra_context_settings() -> dict[str, Any]:
     )
 
 
+#: A ``click.ParamType`` for strictly positive integers (1 to infinity).
 PositiveInt: ParamType = IntRange(min=1, max=None)
 
 
+#: A ``click.ParamType`` for non-negative integers (0 to infinity).
 NonNegativeInt: ParamType = IntRange(min=0, max=None)
 
 
+#: A ``click.ParamType`` for strictly negative integers (negative infinity to -1).
 NegativeInt: ParamType = IntRange(min=None, max=-1)
 
 
+#: A ``click.ParamType`` for non-positive integers (negative infinity to 0).
 NonPositiveInt: ParamType = IntRange(min=None, max=0)
 
 
+#: A ``click.ParamType`` for unsigned 16-bit integers (0 to 65535).
 UInt16: ParamType = IntRange(min=0, max=65535)
