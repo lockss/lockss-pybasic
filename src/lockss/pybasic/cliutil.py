@@ -33,11 +33,11 @@ Command line utilities.
 """
 
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import click
 from click.types import ParamType, IntRange
-from click_extra import ExtraContext, HelpExtraFormatter, Style
+from click_extra import ChoiceSource, EnumChoice, ExtraContext, HelpExtraFormatter, Style, TableFormat, option
 from click_extra.colorize import default_theme
 
 
@@ -109,6 +109,13 @@ def compose_decorators(*decorators):
             decorated = dec(decorated)
         return decorated
     return wrapped
+
+
+def make_table_format_option(switches: Union[str, tuple[str, ...]] = ('--table-format', '-T'),
+                             default: TableFormat = TableFormat.SIMPLE):
+    if type(switches) == str:
+        switches = (switches,)
+    return option(*switches, type=EnumChoice(TableFormat, choice_source=ChoiceSource.VALUE), default=default, show_default=True, help='Set the rendering of tables to the given style.')
 
 
 def make_extra_context_settings() -> dict[str, Any]:

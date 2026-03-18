@@ -20,6 +20,8 @@ Requires Python 3.10.
 
       *  ``compose_decorators()``: a decorator utility.
 
+      *  ``make_table_format_option()``: a remix of Click Extra's ``table_Format_option`` that is not attached to the top-level command.
+
       *  ``make_extra_context_settings()``: a standard ``click_extra.commands.ExtraContext``.
 
       ``lockss.pybasic.outpututil`` has been removed.
