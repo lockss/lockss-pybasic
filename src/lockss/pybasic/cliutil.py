@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 
-# Copyright (c) 2000-2025, Board of Trustees of Leland Stanford Jr. University
+# Copyright (c) 2000-2026, Board of Trustees of Leland Stanford Jr. University
 #
 # Redistribution and use in source and binary forms, with or without
 # modification, are permitted provided that the following conditions are met:
@@ -32,211 +32,205 @@
 Command line utilities.
 """
 
-from collections.abc import Callable
-import sys
-from typing import Any, Dict, Generic, Optional, TypeVar
+from pathlib import Path
+from typing import Any, Optional, Union
 
-from pydantic.v1 import BaseModel
-from pydantic_argparse import ArgumentParser
-from pydantic_argparse.argparse.actions import SubParsersAction
-from rich_argparse import RichHelpFormatter
+import click
+from click.types import ParamType, IntRange
+from click_extra import ChoiceSource, EnumChoice, ExtraContext, HelpExtraFormatter, Style, TableFormat, option
+from click_extra.colorize import default_theme
 
 
-class ActionCommand(Callable, BaseModel):
+def click_path(spec: Optional[str]) -> click.Path:
     """
-    Base class for a pydantic-argparse style command.
+    Generates a ``click.Path`` based on a specification string.
+
+    The specification string can contain the following specifier characters:
+
+    .. list-table::
+       :header-rows: 1
+
+       *  *  Specifier
+          *  Present
+          *  Mutually exclusive with
+       *  *  ``f``
+          *  Must be a file
+          *  ``d`` [*]
+       *  *  ``d``
+          *  Must be a directory
+          *  ``f`` [*]
+       *  *  ``e``
+          *  File or directory must exist
+          *  ``E``
+       *  *  ``E``
+          *  File or directory may or may not exist, but if it does not exist,
+             other checks are skipped (default)
+          *  ``e``
+       *  *  ``r``
+          *  File or directory must be readable
+          *
+       *  *  ``w``
+          *  File or directory must be writable
+          *
+       *  *  ``x``
+          *  File or directory must be executable
+          *
+       *  *  ``p``
+          *  Resulting path will be ``pathlib.Path`` (default)
+          *  ``s``
+       *  *  ``s``
+          *  Resulting path will be ``str``
+          *  ``p``
+       *  *  ``-``
+          *  Path is allowed to be ``-``
+          *
+       *  *  ``z``
+          *  Path will be absolute and resolved, with ``pathlib.Path.resolve``
+          *
+
+    When two mutual exclusive specifiers are present, ``ValueError`` is raised.
+
+    :param spec: A specification string.
+    :type spec: str
+    :return: A ``click.Path``.
+    :rtype: click.Path
+    :raises ValueError: If two mutually exclusive specifiers are present in the
+                        specification string.
     """
-    pass
-
-
-class StringCommand(ActionCommand):
-    """
-    A pydantic-argparse style command that prints a string.
-
-    Example of use:
-
-    .. code-block:: python
-
-       class MyCliModel(BaseModel):
-           copyright: Optional[StringCommand.type(my_copyright_string)] = Field(description=COPYRIGHT_DESCRIPTION)
-
-    See also the convenience constants ``COPYRIGHT_DESCRIPTION``,
-    ``LICENSE_DESCRIPTION``, and ``VERSION_DESCRIPTION``.
-    """
-
-    @staticmethod
-    def type(display_str: str):
-        class _StringCommand(StringCommand):
-            def __call__(self, file=sys.stdout, **kwargs):
-                print(display_str, file=file)
-        return _StringCommand
-
-
-COPYRIGHT_DESCRIPTION = 'print the copyright and exit'
-LICENSE_DESCRIPTION = 'print the software license and exit'
-VERSION_DESCRIPTION = 'print the version number and exit'
-
-
-BaseModelT = TypeVar('BaseModelT', bound=BaseModel)
-
-
-class BaseCli(Generic[BaseModelT]):
-    """
-    Base class for general CLI functionality.
-
-    ``BaseModelT`` represents a Pydantic-Argparse model type deriving from
-    ``BaseModel``.
-
-    For each command ``x-y-z`` induced by a Pydantic-Argparse field named
-    ``x_y_z`` deriving from ``BaseModel`` , the ``dispatch()`` method expects a
-    method named ``_x_y_z``.
-    """
-
-    def __init__(self, **kwargs):
-        """
-        Constructs a new ``BaseCli`` instance.
-
-        :param kwargs: Keyword arguments. Must include ``model``, the
-                       ``BaseModel`` type corresponding to ``BaseModelT``. Must
-                       include ``prog``, the command-line name of the program.
-                       Must include ``description``, the description string of
-                       the program.
-        :type kwargs: Dict[str, Any]
-        """
-        super().__init__()
-        self._args: Optional[BaseModelT] = None
-        self._parser: Optional[ArgumentParser] = None
-        self.extra: Dict[str, Any] = dict(**kwargs)
-
-    def run(self) -> None:
-        """
-        Runs the command line tool:
-
-        *  Creates a Pydantic-Argparse ``ArgumentParser`` with ``model``,
-           ``prog`` and ``description`` from the constructor keyword
-           arguments in ``self.parser``.
-
-        *  Stores the Pydantic-Argparse parsed arguments in ``self.args``.
-
-        *  Calls ``dispatch()``.
-        """
-        self._parser: ArgumentParser = ArgumentParser(model=self.extra.get('model'),
-                                                      prog=self.extra.get('prog'),
-                                                      description=self.extra.get('description'))
-        self._initialize_rich_argparse()
-        self._args = self._parser.parse_typed_args()
-        self.dispatch()
-
-    def dispatch(self) -> None:
-        """
-        Dispatches from the first field ``x_y_z`` in ``self.args`` that is a
-        command (i.e. whose value derives from ``BaseModel``) to a method
-        called ``_x_y_z``.
-        """
-        field_names = self._args.__class__.__fields__.keys()
-        for field_name in field_names:
-            field_value = getattr(self._args, field_name)
-            if issubclass(type(field_value), BaseModel):
-                func = getattr(self, f'_{field_name}')
-                if callable(func):
-                    func(field_value)
-                else:
-                    self._parser.exit(1, f'internal error: no _{field_name} callable for the {field_name} command')
-                break
+    if spec is None:
+        spec = ''
+    allow_dash = False
+    dir_okay = True
+    executable = False
+    exists = False
+    file_okay = True
+    path_type = Path
+    readable = True
+    resolve_path = False
+    writable = False
+    for char in spec:
+        if char == 'd':
+            if 'f' in spec:
+                raise ValueError(f'"d" and "f" are mutually exclusive: {spec}')
+            dir_okay = True
+            file_okay = False
+        elif char == 'e':
+            if 'E' in spec:
+                raise ValueError(f'"e" and "E" are mutually exclusive: {spec}')
+            exists = True
+        elif char == 'E':
+            if 'e' in spec:
+                raise ValueError(f'"E" and "e" are mutually exclusive: {spec}')
+            exists = False
+        elif char == 'f':
+            if 'd' in spec:
+                raise ValueError(f'"f" and "d" are mutually exclusive: {spec}')
+            dir_okay = False
+            file_okay = True
+        elif char == 'p':
+            if 's' in spec:
+                raise ValueError(f'"p" and "s" are mutually exclusive: {spec}')
+            path_type = Path
+        elif char == 'r':
+            readable = True
+        elif char == 's':
+            if 'p' in spec:
+                raise ValueError(f'"s" and "p" are mutually exclusive: {spec}')
+            path_type = str
+        elif char == 'w':
+            writable = True
+        elif char == 'x':
+            executable = True
+        elif char == 'z':
+            resolve_path = True
+        elif char == '-':
+            allow_dash = True
         else:
-            self._parser.error(f'unknown command; expected one of {", ".join(field_names)}')
-
-    def _initialize_rich_argparse(self) -> None:
-        """
-        Initializes `rich-argparse <https://pypi.org/project/rich-argparse/>`_
-        for this instance.
-        """
-        self._initialize_rich_argparse_styles()
-        def __add_formatter_class(container):
-            container.formatter_class = RichHelpFormatter
-            if hasattr(container, '_actions'):
-                for action in container._actions:
-                    if issubclass(type(action), SubParsersAction):
-                        for subaction in action.choices.values():
-                            __add_formatter_class(subaction)
-        __add_formatter_class(self._parser)
-
-    def _initialize_rich_argparse_styles(self) -> None:
-        # See https://github.com/hamdanal/rich-argparse#customize-the-colors
-        for cls in [RichHelpFormatter]:
-            cls.styles.update({
-                'argparse.args': 'bold cyan',  # for positional-arguments and --options (e.g "--help")
-                'argparse.groups': 'underline dark_orange',  # for group names (e.g. "positional arguments")
-                'argparse.help': 'default',  # for argument's help text (e.g. "show this help message and exit")
-                'argparse.metavar': 'italic dark_cyan',  # for metavariables (e.g. "FILE" in "--file FILE")
-                'argparse.prog': 'bold grey50',  # for %(prog)s in the usage (e.g. "foo" in "Usage: foo [options]")
-                'argparse.syntax': 'bold',  # for highlights of back-tick quoted text (e.g. "`some text`")
-                'argparse.text': 'default',  # for descriptions, epilog, and --version (e.g. "A program to foo")
-                'argparse.default': 'italic',  # for %(default)s in the help (e.g. "Value" in "(default: Value)")
-            })
+            raise ValueError(f'unknown specification character "{char}": {spec}')
+    return click.Path(allow_dash=allow_dash,
+                      dir_okay=dir_okay,
+                      executable=executable,
+                      exists=exists,
+                      file_okay=file_okay,
+                      path_type=path_type,
+                      readable=readable,
+                      resolve_path=resolve_path,
+                      writable=writable)
 
 
-def at_most_one_from_enum(model_cls, values: Dict[str, Any], enum_cls) -> Dict[str, Any]:
+#: Composes the given decorators, so that
+#:     @compose_decorators(f, g, h)
+#:     def foo():
+#:         pass
+#: is equivalent to:
+#:     @f
+#      @g
+#      @h
+#:     def foo():
+#:         pass
+def compose_decorators(*decorators):
+    def wrapped(decorated):
+        for dec in reversed(decorators):
+            decorated = dec(decorated)
+        return decorated
+    return wrapped
+
+
+def make_table_format_option(switches: Union[str, tuple[str, ...]] = ('--table-format', '-T'),
+                             default: TableFormat = TableFormat.SIMPLE):
     """
-    Among the fields of a Pydantic-Argparse model whose ``Field`` definition is
-    tagged with the ``enum`` keyword set to the given ``Enum`` type, ensures
-    that at most one of them has a true value in the given Pydantic-Argparse
-    validator ``values``, or raises a ``ValueError`` otherwise.
+    Makes an equivalent of ``click_Extra.table_format_option`` with the given
+    command line switches and the given table format default.
 
-    :param model_cls: A Pydantic-Argparse model class.
-    :param values:    The Pydantic-Argparse validator ``values``.
-    :param enum_cls:  The ``Enum`` class the fields of the Pydantic-Argparse
-                      model are tagged with (using the ``enum`` keyword).
-    :return: The ``values`` argument, if no ``ValueError`` has been raised.
+    The standard ``click_Extra.table_format_option`` attaches to the top-level
+    command only.
+
+    :param switches: A string or tuple of strings for the command line switches.
+    :type switches: Union[str, tuple[str, ...]]
+    :param default: A ``click_extra.TableFormat`` default.
+    :type default: TableFormat
+    :return: A remixed ``click_Extra.table_format_option``.
+    :rtype:
     """
-    enum_names = [field_name for field_name, model_field in model_cls.__fields__.items() if model_field.field_info.extra.get('enum') == enum_cls]
-    ret = [field_name for field_name in enum_names if values.get(field_name)]
-    if (length := len(ret)) > 1:
-        raise ValueError(f'at most one of {", ".join([option_name(enum_name) for enum_name in enum_names])} is allowed, got {length} ({", ".join([option_name(enum_name) for enum_name in ret])})')
-    return values
+    if type(switches) == str:
+        switches = (switches,)
+    return option(*switches, type=EnumChoice(TableFormat, choice_source=ChoiceSource.VALUE), default=default, show_default=True, help='Set the rendering of tables to the given style.')
 
 
-def get_from_enum(model_inst, enum_cls, default=None):
+def make_extra_context_settings() -> dict[str, Any]:
     """
-    Among the fields of a Pydantic-Argparse model whose ``Field`` definition is
-    tagged with the ``enum`` keyword set to the given ``Enum`` type, gets the
-    corresponding enum value of the first with a true value in the model, or
-    returns the given default value. Assumes the existence of a
-    ``from_member()`` static method in the ``Enum`` class.
+    Makes a custom ``click_Extra.ExtraContext`` with essential changes.
 
-    :param model_inst:
-    :param enum_cls:
-    :param default:
-    :return:
+    Currently, the only change is that the help formatter styles the invoked
+    command in bold.
+
+    :return: A custom ``click_Extra.ExtraContext``.
+    :rtype: dict[str, Any]
     """
-    enum_names = [field_name for field_name, model_field in type(model_inst).__fields__.items() if model_field.field_info.extra.get('enum') == enum_cls]
-    for field_name in enum_names:
-        if getattr(model_inst, field_name):
-            return enum_cls[field_name]
-    return default
+    return ExtraContext.settings(
+        formatter_settings=HelpExtraFormatter.settings(
+            theme=default_theme.with_(
+                invoked_command=Style(bold=True)
+            )
+        )
+    )
 
 
-def at_most_one(values: Dict[str, Any], *names: str):
-    if (length := _matchy_length(values, *names)) > 1:
-        raise ValueError(f'at most one of {", ".join([option_name(name) for name in names])} is allowed, got {length}')
-    return values
+#: A ``click.ParamType`` for strictly positive integers (1 to infinity).
+PositiveInt: ParamType = IntRange(min=1, max=None)
 
 
-def exactly_one(values: Dict[str, Any], *names: str):
-    if (length := _matchy_length(values, *names)) != 1:
-        raise ValueError(f'exactly one of {", ".join([option_name(name) for name in names])} is required, got {length}')
-    return values
+#: A ``click.ParamType`` for non-negative integers (0 to infinity).
+NonNegativeInt: ParamType = IntRange(min=0, max=None)
 
 
-def one_or_more(values: Dict[str, Any], *names: str):
-    if _matchy_length(values, *names) == 0:
-        raise ValueError(f'one or more of {", ".join([option_name(name) for name in names])} is required')
-    return values
+#: A ``click.ParamType`` for strictly negative integers (negative infinity to -1).
+NegativeInt: ParamType = IntRange(min=None, max=-1)
 
 
-def option_name(name: str) -> str:
-    return f'{("-" if len(name) == 1 else "--")}{name.replace("_", "-")}'
+#: A ``click.ParamType`` for non-positive integers (negative infinity to 0).
+NonPositiveInt: ParamType = IntRange(min=None, max=0)
 
 
-def _matchy_length(values: Dict[str, Any], *names: str) -> int:
-    return len([name for name in names if values.get(name)])
+#: A ``click.ParamType`` for unsigned 16-bit integers (0 to 65535).
+UInt16: ParamType = IntRange(min=0, max=65535)
