@@ -28,11 +28,11 @@
 
 [project]
 name = "lockss-pybasic"
-version = "0.2.0-dev7" # Always change in __init__.py, and at release time in README.rst and CHANGELOG.rst
+version = "0.2.0-dev17" # Always change in __init__.py, and at release time in README.rst and CHANGELOG.rst
 description = "Basic Python utilities"
 license = { text = "BSD-3-Clause" }
 readme = "README.rst"
-requires-python = ">=3.9,<4.0"
+requires-python = ">=3.10,<4.0"
 authors = [
     { name = "Thib Guicherd-Callin", email = "thib@cs.stanford.edu" },
 ]
@@ -40,10 +40,7 @@ maintainers = [
     { name = "Thib Guicherd-Callin", email = "thib@cs.stanford.edu" },
 ]
 dependencies = [
-    "pydantic (>=2.11.0,<3.0.0)",
-    "pydantic-argparse (>=0.10.0,<0.11.0)",
-    "rich-argparse (>=1.7.0,<1.8.0)",
-    "tabulate (>=0.9.0,<0.10.0)",
+    "click-extra (>=7.5.0,<7.6.0)",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
