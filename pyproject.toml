@@ -28,7 +28,7 @@
 
 [project]
 name = "lockss-pybasic"
-version = "0.2.0-dev17" # Always change in __init__.py, and at release time in README.rst and CHANGELOG.rst
+version = "0.3.0-dev1" # Always change in __init__.py, and at release time in README.rst and CHANGELOG.rst
 description = "Basic Python utilities"
 license = { text = "BSD-3-Clause" }
 readme = "README.rst"
