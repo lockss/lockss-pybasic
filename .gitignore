@@ -2,7 +2,8 @@
 /**/*.py[co]
 /**/__pycache__
 
-# Poetry build
+# Poetry
+/poetry.lock
 /dist/
 
 # PyCharm/IntelliJ artifacts
