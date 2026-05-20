@@ -41,6 +41,7 @@ maintainers = [
 ]
 dependencies = [
     "click-extra (>=7.5.0,<7.6.0)",
+    "pydantic (>=2.13.0,<2.14.0)",
 ]
 classifiers = [
     "Development Status :: 4 - Beta",
@@ -62,7 +63,7 @@ include = [
     "README.rst",
 ]
 packages = [
-    { include = "lockss", from = "src" }
+    { include = "lockss/pybasic", from = "src" }
 ]
 
 [build-system]
