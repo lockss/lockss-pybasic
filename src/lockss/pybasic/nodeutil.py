@@ -40,11 +40,6 @@ from typing import Annotated, ClassVar, Literal, Optional, Union
 from annotated_types import Ge, Le
 from pydantic import BaseModel, Field, TypeAdapter
 
-from .errorutil import InternalError
-
-
-RE_NODE_REFERENCE: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+|(?=:))(:(?P<configuration>\d+|(?=:))(:(?P<poller>\d+|(?=:))(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
-
 
 PortNumber = Annotated[int, Ge(0), Le(65535)]
 
@@ -134,6 +129,9 @@ _node_spec_adapter: TypeAdapter[NodeSpec] = TypeAdapter(NodeSpec)
 
 def get_node_spec_adapter() -> TypeAdapter[NodeSpec]:
     return _node_spec_adapter
+
+
+RE_NODE_REFERENCE: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+|(?=:))(:(?P<configuration>\d+|(?=:))(:(?P<poller>\d+|(?=:))(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
 
 
 NodeSpecStr = str
