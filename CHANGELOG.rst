@@ -10,6 +10,10 @@ Released: NOT YET RELEASED
 
 Requires Python 3.10.
 
+*  **Features**
+
+   *  ``nodeutil`` is a module for LOCKSS node references, that encompasses both LOCKSS 1.x and 2.x.
+
 -----
 0.2.0
 -----

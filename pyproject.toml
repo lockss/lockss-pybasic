@@ -28,7 +28,7 @@
 
 [project]
 name = "lockss-pybasic"
-version = "0.3.0-dev1" # Always change in __init__.py, and at release time in README.rst and CHANGELOG.rst
+version = "0.3.0-dev3" # Always change in __init__.py, and at release time in README.rst and CHANGELOG.rst
 description = "Basic Python utilities"
 license = { text = "BSD-3-Clause" }
 readme = "README.rst"
@@ -40,7 +40,8 @@ maintainers = [
     { name = "Thib Guicherd-Callin", email = "thib@cs.stanford.edu" },
 ]
 dependencies = [
-    "click-extra (>=7.5.0,<7.6.0)",
+    "annotated-types (>=0.7.0,<0.8.0)", # from Pydantic
+    "click-extra (>=7.17.0,<7.18.0)",
     "pydantic (>=2.13.0,<2.14.0)",
 ]
 classifiers = [

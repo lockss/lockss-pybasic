@@ -33,89 +33,135 @@ LOCKSS node utilities.
 """
 
 from enum import Enum
-from re import Pattern
+from re import Match, Pattern
 import re
-from typing import Any, Optional
+from typing import Annotated, ClassVar, Literal, Optional, Union
 
-from pydantic import BaseModel, Field, model_validator
+from annotated_types import Ge, Le
+from pydantic import BaseModel, Field, TypeAdapter
 
 from .errorutil import InternalError
 
 
-RE_NODE_REFERENCE: Pattern = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+|(?=:))(:(?P<configuration>\d+|(?=:))(:(?P<poller>\d+|(?=:))(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
+RE_NODE_REFERENCE: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+|(?=:))(:(?P<configuration>\d+|(?=:))(:(?P<poller>\d+|(?=:))(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
 
 
-class LockssNodeTypeEnum(Enum):
+PortNumber = Annotated[int, Ge(0), Le(65535)]
+
+
+class NodeTypeEnum(Enum):
     V1 = 'v1'
     V2 = 'v2'
 
 
-class LockssNodeProtocolEnum(Enum):
+class NodeProtocolEnum(Enum):
     HTTP = 'http'
     HTTPS = 'https'
 
 
-DEFAULT_UI_PORT_V1: int = 8081
+class BaseNodeSpec(BaseModel):
 
-DEFAULT_REPO_PORT: int = 24611
+    DEFAULT_PROTOCOL: ClassVar[NodeProtocolEnum] = NodeProtocolEnum.HTTPS
 
-DEFAULT_CFG_PORT: int = 24612
+    TYPE_FIELD: ClassVar[dict[str, str]] = dict(title='Type',
+                                                description="The node's type")
 
-DEFAULT_POL_PORT: int = 24613
+    protocol: NodeProtocolEnum = Field(default=DEFAULT_PROTOCOL,
+                                       title='Protocol',
+                                       description="The protocol for reaching the node")
 
-DEFAULT_CRW_PORT: int = 24614
-
-DEFAULT_MD_PORT: int = 24615
-
-DEFAULT_SOAP_PORT: int = 24616
+    host: str = Field(title='Host',
+                      description="The node's host")
 
 
-class LockssNodeModel(BaseModel):
-    host: str = Field(title='Host', description="The LOCKSS node's host")
-    type: LockssNodeTypeEnum = Field(default=LockssNodeTypeEnum.V2, title='Type', description='LOCKSS node type')
-    protocol: LockssNodeProtocolEnum = Field(default=LockssNodeProtocolEnum.HTTPS, title='Protocol', description="The protocol for reaching the node")
-    repository: int = Field(default=DEFAULT_REPO_PORT, title='Repository Port', description="The node's Repository Service REST API Port")
-    configuration: int = Field(default=DEFAULT_CFG_PORT, title='Configuration Port', description="The node's Configuration Service REST API Port")
-    poller: int = Field(default=DEFAULT_POL_PORT, title='Poller Port', description="The node's Poller Service REST API Port")
-    crawler: int = Field(default=DEFAULT_CRW_PORT, title='Crawler Port', description="The node's Crawler Service REST API Port")
-    metadata: int = Field(default=DEFAULT_MD_PORT, title='Metadata Port', description="The node's Metadata Service REST API Port")
-    soap: int = Field(default=DEFAULT_SOAP_PORT, title='SOAP Port', description="The node's SOAP Compatibility Service REST API Port")
-    ui: int = Field(default=DEFAULT_UI_PORT_V1, title='UI Port', description="The LOCKSS 1.x node's Web user interface port")
+class NodeSpec1(BaseNodeSpec):
 
-    @model_validator(mode='before')
-    @classmethod
-    def _validate_model_type(cls, data: Any) -> Any:
-        _has, _get, _set = (dict.__contains__, dict.get, dict.__setitem__) if isinstance(data, dict) else (hasattr, getattr, setattr)
-        if (host_orig := _get(data, 'host', None)) is not None and isinstance(host_orig, str):
-            host_ref: str = host_orig
-            mat = RE_NODE_REFERENCE.fullmatch(host_ref)
-            if mat is None:
-                raise ValueError(f'Invalid node reference: {host_ref}')
-            # Avoid conflicting definitions
-            five = ('configuration', 'poller', 'crawler', 'metadata', 'soap')
-            for k in ('protocol', *five):
-                if h_val := mat.group(k):
-                    if _get(data, k, None) is not None:
-                        raise ValueError(f"Node reference conflicts with '{k}' definition: {h_val}")
-                    _set(data, k, h_val)
-            # 'repository' + 'ui' is more complicated
-            if h_repo_or_ui := mat.group('repository'):
-                for k in ('repository', 'ui'):
-                    if _get(data, k, None) is not None:
-                        raise ValueError(f"Node reference conflicts with '{k}' definition: {h_repo_or_ui}")
-                try:
-                    repo_or_ui_int: int = int(h_repo_or_ui)
-                except ValueError as ve:
-                    raise InternalError from ve # shouldn't happen, should be \d+
-                if any(mat.group(x) for x in five) or repo_or_ui_int >= 10000:
-                    _set(data, 'repository', h_repo_or_ui)  # Assume v2
-                elif 1000 <= repo_or_ui_int < 10000:
-                    _set(data, 'ui', h_repo_or_ui) # Assume v1
-                    if _get(data, 'type', None) is None:
-                        _set(data, 'type', LockssNodeTypeEnum.V1.value)
-                else:
-                    raise ValueError(f'Invalid repository/UI port in node reference: {repo_or_ui_int}')
-            # Finally, reset 'host'
-            if any(mat.group(x) for x in ('protocol', 'repository', *five)):
-                _set(data, 'host', mat.group('host'))
-        return data
+    DEFAULT_UI_PORT_V1: ClassVar[int] = 8081
+
+    type: Literal['v1'] = Field(**BaseNodeSpec.TYPE_FIELD)
+
+    ui: PortNumber = Field(default=DEFAULT_UI_PORT_V1,
+                           title='UI Port',
+                           description="The LOCKSS 1.x node's Web user interface port")
+
+
+class NodeSpec2(BaseNodeSpec):
+
+    DEFAULT_REPO_PORT: ClassVar[int] = 24611
+
+    DEFAULT_CFG_PORT: ClassVar[int] = 24612
+
+    DEFAULT_POL_PORT: ClassVar[int] = 24613
+
+    DEFAULT_CRW_PORT: ClassVar[int] = 24614
+
+    DEFAULT_MD_PORT: ClassVar[int] = 24615
+
+    DEFAULT_SOAP_PORT: ClassVar[int] = 24616
+
+    type: Literal['v2'] = Field(**BaseNodeSpec.TYPE_FIELD)
+
+    repository: PortNumber = Field(default=DEFAULT_REPO_PORT,
+                                   title='Repository Port',
+                                   description="The node's Repository Service REST API Port")
+
+    configuration: PortNumber = Field(default=DEFAULT_CFG_PORT,
+                                      title='Configuration Port',
+                                      description="The node's Configuration Service REST API Port")
+
+    poller: PortNumber = Field(default=DEFAULT_POL_PORT,
+                               title='Poller Port',
+                               description="The node's Poller Service REST API Port")
+
+    crawler: PortNumber = Field(default=DEFAULT_CRW_PORT,
+                                title='Crawler Port',
+                                description="The node's Crawler Service REST API Port")
+
+    metadata: PortNumber = Field(default=DEFAULT_MD_PORT,
+                                 title='Metadata Port',
+                                 description="The node's Metadata Service REST API Port")
+
+    soap: PortNumber = Field(default=DEFAULT_SOAP_PORT,
+                             title='SOAP Port',
+                             description="The node's SOAP Compatibility Service REST API Port")
+
+
+NodeSpec = Annotated[Union[NodeSpec1, NodeSpec2], Field(discriminator='type')]
+
+
+_node_spec_adapter: TypeAdapter[NodeSpec] = TypeAdapter(NodeSpec)
+
+
+def get_node_spec_adapter() -> TypeAdapter[NodeSpec]:
+    return _node_spec_adapter
+
+
+NodeSpecStr = str
+
+
+def make_node_spec(node_spec_string: NodeSpecStr) -> NodeSpec:
+    mat: Optional[Match[str]] = RE_NODE_REFERENCE.fullmatch(node_spec_string)
+    if mat is None:
+        raise ValueError(f'Invalid node specification string: {node_spec_string}')
+    d = dict(host=mat.group('host'))
+    if prot := mat.group('protocol'):
+        d['protocol'] = prot
+    five = ('configuration', 'poller', 'crawler', 'metadata', 'soap')
+    if repo_or_ui := mat.group('repository'):
+        if any(mat.group(x) for x in five) or len(repo_or_ui) >= 5:
+            # 10000 or larger: assume V2
+            d['type'] = NodeTypeEnum.V2.value
+            d['repository'] = repo_or_ui
+        elif len(repo_or_ui) == 4:
+            # 1000 through 9999: assume V1
+            d['type'] = NodeTypeEnum.V1.value
+            d['ui'] = repo_or_ui
+        else:
+            raise ValueError(f'Invalid repository/UI port in node specification string: {repo_or_ui}')
+    else:
+        # Assume V2
+        d['type'] = NodeTypeEnum.V2.value
+    for k in five:
+        if p := mat.group(k):
+            d[k] = p # string okay, will be coerced to int
+    return get_node_spec_adapter().validate_python(d)

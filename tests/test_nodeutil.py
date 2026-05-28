@@ -38,14 +38,14 @@ import unittest
 
 from pydantic import ValidationError
 
-from lockss.pybasic.nodeutil import LockssNodeModel, LockssNodeProtocolEnum, LockssNodeTypeEnum, DEFAULT_CFG_PORT, DEFAULT_CRW_PORT, DEFAULT_MD_PORT, DEFAULT_POL_PORT, DEFAULT_REPO_PORT, DEFAULT_SOAP_PORT, DEFAULT_UI_PORT_V1
+from lockss.pybasic.nodeutil import NodeProtocolEnum, NodeSpec, NodeSpec1, NodeSpec2, NodeTypeEnum, make_node_spec
 
 
 class TestNodeUtil(TestCase):
 
-    def test_node_references(self):
+    def test_make_node_spec(self):
         host = 'myhost'
-        def _test_node_reference(proto: str,
+        def _test_make_node_spec(proto: str,
                                  repo: Optional[str],
                                  cfg: Optional[bool],
                                  pol: Optional[bool],
@@ -67,66 +67,58 @@ class TestNodeUtil(TestCase):
                                     hr = f'{hr}{":6" if soa else ":"}'
             five = (cfg, pol, crw, md, soa)
             try:
-                mod = LockssNodeModel(host=hr)
-                self.assertEqual(mod.protocol, LockssNodeProtocolEnum.HTTP if proto == 'http://' else LockssNodeProtocolEnum.HTTPS) # else includes proto == ''
-                self.assertEqual(mod.host, host)
+                spec: NodeSpec = make_node_spec(hr)
+                self.assertEqual(spec.protocol, NodeProtocolEnum.HTTP if proto == 'http://' else NodeProtocolEnum.HTTPS) # else includes proto == ''
+                self.assertEqual(spec.host, host)
                 if not any(five) and repo == '4444':
-                    self.assertEqual(mod.type, LockssNodeTypeEnum.V1)
-                    self.assertEqual(mod.ui, int(repo))
-                    # Check defaults
-                    self.assertEqual(mod.repository, DEFAULT_REPO_PORT)
-                    self.assertEqual(mod.configuration, DEFAULT_CFG_PORT)
-                    self.assertEqual(mod.poller, DEFAULT_POL_PORT)
-                    self.assertEqual(mod.crawler, DEFAULT_CRW_PORT)
-                    self.assertEqual(mod.metadata, DEFAULT_MD_PORT)
-                    self.assertEqual(mod.soap, DEFAULT_SOAP_PORT)
+                    self.assertEqual(spec.type, NodeTypeEnum.V1.value)
+                    self.assertEqual(spec.ui, int(repo))
                 else:
-                    self.assertEqual(mod.type, LockssNodeTypeEnum.V2)
-                    self.assertEqual(mod.repository, int(repo) if repo else DEFAULT_REPO_PORT)
-                    self.assertEqual(mod.configuration, 2 if cfg else DEFAULT_CFG_PORT)
-                    self.assertEqual(mod.poller, 3 if pol else DEFAULT_POL_PORT)
-                    self.assertEqual(mod.crawler, 4 if crw else DEFAULT_CRW_PORT)
-                    self.assertEqual(mod.metadata, 5 if md else DEFAULT_MD_PORT)
-                    self.assertEqual(mod.soap, 6 if soa else DEFAULT_SOAP_PORT)
-                    # Check defaults
-                    self.assertEqual(mod.ui, DEFAULT_UI_PORT_V1)
-            except ValidationError as ve:
+                    self.assertEqual(spec.type, NodeTypeEnum.V2.value)
+                    self.assertEqual(spec.repository, int(repo) if repo else NodeSpec2.DEFAULT_REPO_PORT)
+                    self.assertEqual(spec.configuration, 2 if cfg else NodeSpec2.DEFAULT_CFG_PORT)
+                    self.assertEqual(spec.poller, 3 if pol else NodeSpec2.DEFAULT_POL_PORT)
+                    self.assertEqual(spec.crawler, 4 if crw else NodeSpec2.DEFAULT_CRW_PORT)
+                    self.assertEqual(spec.metadata, 5 if md else NodeSpec2.DEFAULT_MD_PORT)
+                    self.assertEqual(spec.soap, 6 if soa else NodeSpec2.DEFAULT_SOAP_PORT)
+            except ValidationError as validation_err:
+                if True:
+                    self.assertEqual(validation_err.error_count(), 1)
+                    self.assertEqual((e0 := validation_err.errors()[0])['type'], 'less_than_equal')
+                    self.assertEqual(e0['msg'], 'Input should be less than or equal to 65535')
+                else:
+                    self.fail(f'Unexpected ValidationError: {hr}')
+            except ValueError as value_err:
                 if hr.endswith(':'):
-                    self.assertEqual(ve.error_count(), 1)
-                    self.assertEqual((e0 := ve.errors()[0])['type'], 'value_error')
-                    self.assertIsInstance(valerr := e0['ctx']['error'], ValueError)
-                    self.assertEqual(valerr.args, (f'Invalid node reference: {hr}',))
+                    self.assertEqual(value_err.args, (f'Invalid node specification string: {hr}',))
                 elif repo == '333' and not any(five):
-                    self.assertEqual(ve.error_count(), 1)
-                    self.assertEqual((e0 := ve.errors()[0])['type'], 'value_error')
-                    self.assertIsInstance(valerr := e0['ctx']['error'], ValueError)
-                    self.assertEqual(valerr.args, (f'Invalid repository/UI port in node reference: {repo}',))
+                    self.assertEqual(value_err.args, (f'Invalid repository/UI port in node specification string: {repo}',))
                 else:
-                    raise ValueError(hr) from ve
+                    self.fail(f'Unexpected ValueError: {hr}')
 
-        for proto in ('', *(f'{p.value}://' for p in LockssNodeProtocolEnum)):
-            for repo in (None, '', '333', '4444', '55555'):
+        for proto in ('', *(f'{p.value}://' for p in NodeProtocolEnum)):
+            for repo in (None, '', '333', '4444', '55555', '666666'):
                 if repo is None:
-                    _test_node_reference(proto, repo, None, None, None, None, None)
+                    _test_make_node_spec(proto, repo, None, None, None, None, None)
                 else:
                     for cfg in (None, False, True):
                         if cfg is None:
-                            _test_node_reference(proto, repo, cfg, None, None, None, None)
+                            _test_make_node_spec(proto, repo, cfg, None, None, None, None)
                         else:
                             for pol in (None, False, True):
                                 if pol is None:
-                                    _test_node_reference(proto, repo, cfg, pol, None, None, None)
+                                    _test_make_node_spec(proto, repo, cfg, pol, None, None, None)
                                 else:
                                     for crw in (None, False, True):
                                         if crw is None:
-                                            _test_node_reference(proto, repo, cfg, pol, crw, None, None)
+                                            _test_make_node_spec(proto, repo, cfg, pol, crw, None, None)
                                         else:
                                             for md in (None, False, True):
                                                 if md is None:
-                                                    _test_node_reference(proto, repo, cfg, pol, crw, md, None)
+                                                    _test_make_node_spec(proto, repo, cfg, pol, crw, md, None)
                                                 else:
                                                     for soa in (None, False, True):
-                                                        _test_node_reference(proto, repo, cfg, pol, crw, md, soa)
+                                                        _test_make_node_spec(proto, repo, cfg, pol, crw, md, soa)
 
 if __name__ == "__main__":
     unittest.main()
