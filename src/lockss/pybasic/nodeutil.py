@@ -35,11 +35,10 @@ LOCKSS node utilities.
 from enum import Enum
 from re import Match, Pattern
 import re
-from typing import Annotated, ClassVar, Literal, Optional, Union
+from typing import Annotated, Any, ClassVar, Literal, Optional, Union
 
 from annotated_types import Ge, Le
-from pydantic import BaseModel, Field, TypeAdapter
-
+from pydantic import BaseModel, BeforeValidator, Field, TypeAdapter, model_validator
 
 PortNumber = Annotated[int, Ge(0), Le(65535)]
 
@@ -121,23 +120,13 @@ class NodeSpec2(BaseNodeSpec):
                              description="The node's SOAP Compatibility Service REST API Port")
 
 
-NodeSpec = Annotated[Union[NodeSpec1, NodeSpec2], Field(discriminator='type')]
-
-
-_node_spec_adapter: TypeAdapter[NodeSpec] = TypeAdapter(NodeSpec)
-
-
-def get_node_spec_adapter() -> TypeAdapter[NodeSpec]:
-    return _node_spec_adapter
-
-
 RE_NODE_REFERENCE: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+|(?=:))(:(?P<configuration>\d+|(?=:))(:(?P<poller>\d+|(?=:))(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
 
 
 NodeSpecStr = str
 
 
-def make_node_spec(node_spec_string: NodeSpecStr) -> NodeSpec:
+def _parse_node_spec_string(node_spec_string: NodeSpecStr) -> dict[str, str]:
     mat: Optional[Match[str]] = RE_NODE_REFERENCE.fullmatch(node_spec_string)
     if mat is None:
         raise ValueError(f'Invalid node specification string: {node_spec_string}')
@@ -162,4 +151,23 @@ def make_node_spec(node_spec_string: NodeSpecStr) -> NodeSpec:
     for k in five:
         if p := mat.group(k):
             d[k] = p # string okay, will be coerced to int
-    return get_node_spec_adapter().validate_python(d)
+    return d
+
+
+def _maybe_deserialize_node_spec_string(value: Any) -> Any:
+    if isinstance(value, str) and not value.startswith('{'):
+        return _parse_node_spec_string(value)
+    return value
+
+
+NodeSpec = Annotated[
+    Annotated[Union[NodeSpec1, NodeSpec2], Field(discriminator='type')],
+    BeforeValidator(_maybe_deserialize_node_spec_string)
+]
+
+
+_node_spec_adapter: TypeAdapter[NodeSpec] = TypeAdapter(NodeSpec)
+
+
+def get_node_spec_adapter() -> TypeAdapter[NodeSpec]:
+    return _node_spec_adapter

@@ -38,7 +38,7 @@ import unittest
 
 from pydantic import ValidationError
 
-from lockss.pybasic.nodeutil import NodeProtocolEnum, NodeSpec, NodeSpec1, NodeSpec2, NodeTypeEnum, make_node_spec
+from lockss.pybasic.nodeutil import NodeProtocolEnum, NodeSpec, NodeSpec1, NodeSpec2, NodeTypeEnum, get_node_spec_adapter
 
 
 class TestNodeUtil(TestCase):
@@ -67,7 +67,8 @@ class TestNodeUtil(TestCase):
                                     hr = f'{hr}{":6" if soa else ":"}'
             five = (cfg, pol, crw, md, soa)
             try:
-                spec: NodeSpec = make_node_spec(hr)
+                print(hr)
+                spec: NodeSpec = get_node_spec_adapter().validate_python(hr)
                 self.assertEqual(spec.protocol, NodeProtocolEnum.HTTP if proto == 'http://' else NodeProtocolEnum.HTTPS) # else includes proto == ''
                 self.assertEqual(spec.host, host)
                 if not any(five) and repo == '4444':
@@ -82,19 +83,22 @@ class TestNodeUtil(TestCase):
                     self.assertEqual(spec.metadata, 5 if md else NodeSpec2.DEFAULT_MD_PORT)
                     self.assertEqual(spec.soap, 6 if soa else NodeSpec2.DEFAULT_SOAP_PORT)
             except ValidationError as validation_err:
-                if True:
-                    self.assertEqual(validation_err.error_count(), 1)
-                    self.assertEqual((e0 := validation_err.errors()[0])['type'], 'less_than_equal')
+                self.assertEqual(validation_err.error_count(), 1)
+                e0 = validation_err.errors()[0]
+                if hr.endswith(':'):
+                    print(dir(validation_err))
+                    self.assertEqual(e0['type'], 'value_error')
+                    self.assertEqual(e0['msg'], f'Value error, Invalid node specification string: {hr}')
+                elif repo == '333' and not any(five):
+                    self.assertEqual(e0['type'], 'value_error')
+                    self.assertEqual(e0['msg'], f'Value error, Invalid repository/UI port in node specification string: {repo}')
+                elif repo == '666666':
+                    self.assertEqual(e0['type'], 'less_than_equal')
                     self.assertEqual(e0['msg'], 'Input should be less than or equal to 65535')
                 else:
                     self.fail(f'Unexpected ValidationError: {hr}')
             except ValueError as value_err:
-                if hr.endswith(':'):
-                    self.assertEqual(value_err.args, (f'Invalid node specification string: {hr}',))
-                elif repo == '333' and not any(five):
-                    self.assertEqual(value_err.args, (f'Invalid repository/UI port in node specification string: {repo}',))
-                else:
-                    self.fail(f'Unexpected ValueError: {hr}')
+                self.fail(f'Unexpected ValueError: {hr}')
 
         for proto in ('', *(f'{p.value}://' for p in NodeProtocolEnum)):
             for repo in (None, '', '333', '4444', '55555', '666666'):
