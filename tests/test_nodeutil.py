@@ -67,7 +67,6 @@ class TestNodeUtil(TestCase):
                                     hr = f'{hr}{":6" if soa else ":"}'
             five = (cfg, pol, crw, md, soa)
             try:
-                print(hr)
                 spec: NodeSpec = get_node_spec_adapter().validate_python(hr)
                 self.assertEqual(spec.protocol, NodeProtocolEnum.HTTP if proto == 'http://' else NodeProtocolEnum.HTTPS) # else includes proto == ''
                 self.assertEqual(spec.host, host)
@@ -86,7 +85,6 @@ class TestNodeUtil(TestCase):
                 self.assertEqual(validation_err.error_count(), 1)
                 e0 = validation_err.errors()[0]
                 if hr.endswith(':'):
-                    print(dir(validation_err))
                     self.assertEqual(e0['type'], 'value_error')
                     self.assertEqual(e0['msg'], f'Value error, Invalid node specification string: {hr}')
                 elif repo == '333' and not any(five):
