@@ -68,7 +68,7 @@ class TestNodeUtil(TestCase):
             five = (cfg, pol, crw, md, soa)
             try:
                 spec: NodeSpec = get_node_spec_adapter().validate_python(hr)
-                self.assertEqual(spec.protocol, NodeProtocolEnum.HTTP if proto == 'http://' else NodeProtocolEnum.HTTPS) # else includes proto == ''
+                self.assertEqual(spec.protocol, NodeProtocolEnum.HTTPS if proto == 'https://' else NodeProtocolEnum.HTTP) # else includes proto == ''
                 self.assertEqual(spec.host, host)
                 if not any(five) and repo == '4444':
                     self.assertEqual(spec.type, NodeTypeEnum.V1.value)

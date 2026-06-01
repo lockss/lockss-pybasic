@@ -55,7 +55,7 @@ class NodeProtocolEnum(Enum):
 
 class BaseNodeSpec(BaseModel):
 
-    DEFAULT_PROTOCOL: ClassVar[NodeProtocolEnum] = NodeProtocolEnum.HTTPS
+    DEFAULT_PROTOCOL: ClassVar[NodeProtocolEnum] = NodeProtocolEnum.HTTP
 
     TYPE_FIELD: ClassVar[dict[str, str]] = dict(title='Type',
                                                 description="The node's type")
