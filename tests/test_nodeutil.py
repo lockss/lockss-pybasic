@@ -38,20 +38,20 @@ import unittest
 
 from pydantic import ValidationError
 
-from lockss.pybasic.nodeutil import NodeProtocolEnum, NodeSpec, NodeSpec1, NodeSpec2, NodeTypeEnum, get_node_spec_adapter
+from lockss.pybasic.nodeutil import NodeProtocolEnum, NodeSet, NodeSpec, NodeSpec1, NodeSpec2, NodeTypeEnum, get_node_spec_adapter
 
 
 class TestNodeUtil(TestCase):
 
-    def test_make_node_spec(self):
+    def test_node_spec(self):
         host = 'myhost'
-        def _test_make_node_spec(proto: str,
-                                 repo: Optional[str],
-                                 cfg: Optional[bool],
-                                 pol: Optional[bool],
-                                 crw: Optional[bool],
-                                 md: Optional[bool],
-                                 soa: Optional[bool]) -> None:
+        def _test_node_spec(proto: str,
+                            repo: Optional[str],
+                            cfg: Optional[bool],
+                            pol: Optional[bool],
+                            crw: Optional[bool],
+                            md: Optional[bool],
+                            soa: Optional[bool]) -> None:
             hr = f'{proto}{host}'
             if repo is not None:
                 hr = f'{hr}:{repo}'
@@ -101,26 +101,53 @@ class TestNodeUtil(TestCase):
         for proto in ('', *(f'{p.value}://' for p in NodeProtocolEnum)):
             for repo in (None, '', '333', '4444', '55555', '666666'):
                 if repo is None:
-                    _test_make_node_spec(proto, repo, None, None, None, None, None)
+                    _test_node_spec(proto, repo, None, None, None, None, None)
                 else:
                     for cfg in (None, False, True):
                         if cfg is None:
-                            _test_make_node_spec(proto, repo, cfg, None, None, None, None)
+                            _test_node_spec(proto, repo, cfg, None, None, None, None)
                         else:
                             for pol in (None, False, True):
                                 if pol is None:
-                                    _test_make_node_spec(proto, repo, cfg, pol, None, None, None)
+                                    _test_node_spec(proto, repo, cfg, pol, None, None, None)
                                 else:
                                     for crw in (None, False, True):
                                         if crw is None:
-                                            _test_make_node_spec(proto, repo, cfg, pol, crw, None, None)
+                                            _test_node_spec(proto, repo, cfg, pol, crw, None, None)
                                         else:
                                             for md in (None, False, True):
                                                 if md is None:
-                                                    _test_make_node_spec(proto, repo, cfg, pol, crw, md, None)
+                                                    _test_node_spec(proto, repo, cfg, pol, crw, md, None)
                                                 else:
                                                     for soa in (None, False, True):
-                                                        _test_make_node_spec(proto, repo, cfg, pol, crw, md, soa)
+                                                        _test_node_spec(proto, repo, cfg, pol, crw, md, soa)
+
+    def test_node_set(self):
+        data1 = {
+            'kind': 'NodeSet',
+            'id': 'mynodeset',
+            'name': 'My Node Set',
+            'nodes': {
+                'node1': {
+                    'type': 'v1',
+                    'host': 'myhost1',
+                },
+                'node2': 'myhost2:4444',
+                'node3': 'myhost3:55555'
+            }
+        }
+        ns1 = NodeSet(**data1)
+        self.assertEqual(len(nodes := ns1.nodes), 3)
+        self.assertEqual((n1 := nodes['node1']).type, NodeTypeEnum.V1.value)
+        self.assertEqual(n1.host, 'myhost1')
+        self.assertEqual(n1.ui, NodeSpec1.DEFAULT_UI_PORT_V1)
+        self.assertEqual((n2 := nodes['node2']).type, NodeTypeEnum.V1.value)
+        self.assertEqual(n2.host, 'myhost2')
+        self.assertEqual(n2.ui, 4444)
+        self.assertEqual((n3 := nodes['node3']).type, NodeTypeEnum.V2.value)
+        self.assertEqual(n3.host, 'myhost3')
+        self.assertEqual(n3.repository, 55555)
+
 
 if __name__ == "__main__":
     unittest.main()

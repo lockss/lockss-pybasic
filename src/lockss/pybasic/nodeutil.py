@@ -40,16 +40,24 @@ from typing import Annotated, Any, ClassVar, Literal, Optional, Union
 from annotated_types import Ge, Le
 from pydantic import BaseModel, BeforeValidator, Field, TypeAdapter, model_validator
 
+
+#: An annotated type for port numbers (0-65535)
 PortNumber = Annotated[int, Ge(0), Le(65535)]
 
 
 class NodeTypeEnum(Enum):
+    """An enumerated type representing LOCKSS node types."""
+    #: An enumerated constant representing LOCKSS 1.x nodes.
     V1 = 'v1'
+    #: An enumerated constant representing LOCKSS 2.x nodes.
     V2 = 'v2'
 
 
 class NodeProtocolEnum(Enum):
+    """An enumerated type representing protocols for reaching LOCKSS nodes."""
+    #: An enumerated constant representing HTTP.
     HTTP = 'http'
+    #: An enumerated constant representing HTTPS.
     HTTPS = 'https'
 
 
@@ -120,14 +128,15 @@ class NodeSpec2(BaseNodeSpec):
                              description="The node's SOAP Compatibility Service REST API Port")
 
 
-RE_NODE_REFERENCE: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+|(?=:))(:(?P<configuration>\d+|(?=:))(:(?P<poller>\d+|(?=:))(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
+_RE_NODE_REFERENCE: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+|(?=:))(:(?P<configuration>\d+|(?=:))(:(?P<poller>\d+|(?=:))(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
 
 
+#: A type for LOCKSS node specification strings.
 NodeSpecStr = str
 
 
 def _parse_node_spec_string(node_spec_string: NodeSpecStr) -> dict[str, str]:
-    mat: Optional[Match[str]] = RE_NODE_REFERENCE.fullmatch(node_spec_string)
+    mat: Optional[Match[str]] = _RE_NODE_REFERENCE.fullmatch(node_spec_string)
     if mat is None:
         raise ValueError(f'Invalid node specification string: {node_spec_string}')
     d = dict(host=mat.group('host'))
@@ -155,19 +164,53 @@ def _parse_node_spec_string(node_spec_string: NodeSpecStr) -> dict[str, str]:
 
 
 def _maybe_deserialize_node_spec_string(value: Any) -> Any:
-    if isinstance(value, str) and not value.startswith('{'):
+    if isinstance(value, NodeSpecStr) and not value.startswith('{'):
         return _parse_node_spec_string(value)
     return value
 
 
+#: A type for LOCKSS node specifications, that also accepts a compact LOCKSS
+#: node specification string.
 NodeSpec = Annotated[
     Annotated[Union[NodeSpec1, NodeSpec2], Field(discriminator='type')],
     BeforeValidator(_maybe_deserialize_node_spec_string)
 ]
 
 
+#: A type adapter for the NodeSpec type.
 _node_spec_adapter: TypeAdapter[NodeSpec] = TypeAdapter(NodeSpec)
 
 
 def get_node_spec_adapter() -> TypeAdapter[NodeSpec]:
+    """
+    Gets a type adapter for the NodeSpec type, which is a union type and cannot
+    be instantiated directly.
+
+    :return: A type adapter for the NodeSpec type.
+    """
     return _node_spec_adapter
+
+
+NodeSetKind = Literal['NodeSet']
+
+
+NodeSetIdentifier = str
+
+
+NodeIdentifier = str
+
+
+class NodeSet(BaseModel):
+
+    kind: NodeSetKind = Field(title='Kind',
+                              description="This object's kind")
+
+    id: NodeSetIdentifier = Field(title='Node Set Identifier',
+                                  description='An identifier for the node set')
+
+    name: str = Field(title='Node Set Name',
+                      description='A name for the node set')
+
+    nodes: dict[NodeIdentifier, NodeSpec] = Field(min_length=1,
+                                                  title='Nodes',
+                                                  description='A non-empty list of nodes')
