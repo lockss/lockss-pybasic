@@ -34,7 +34,6 @@ Unit tests for lockss.pybasic.nodeutil.
 
 from typing import Optional
 from unittest import TestCase
-import unittest
 
 from pydantic import ValidationError
 
@@ -147,7 +146,3 @@ class TestNodeUtil(TestCase):
         self.assertEqual((n3 := nodes['node3']).type, NodeTypeEnum.V2.value)
         self.assertEqual(n3.host, 'myhost3')
         self.assertEqual(n3.repository, 55555)
-
-
-if __name__ == "__main__":
-    unittest.main()
