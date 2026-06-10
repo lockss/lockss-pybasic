@@ -32,9 +32,12 @@
 File and path utilities.
 """
 
-from pathlib import Path, PurePath
+from pathlib import Path
 import sys
-from typing import List, Union
+from typing import List, TypeAlias, Union
+
+
+PathOrStr: TypeAlias = Union[Path, str]
 
 
 def file_lines(fpath: Path) -> List[str]:
@@ -56,7 +59,7 @@ def file_lines(fpath: Path) -> List[str]:
             f.close()
 
 
-def path(purepath_or_string: Union[PurePath, str]) -> Path:
+def path(path_or_string: PathOrStr) -> Path:
     """
     Returns the given ``PurePath`` (or if given a string, the ``Path`` created
     from that string), expanded with ``expanduser()`` and resolved with
@@ -68,6 +71,6 @@ def path(purepath_or_string: Union[PurePath, str]) -> Path:
     :return: An expanded and resolved ``Path``.
     :rtype: Path
     """
-    if not issubclass(type(purepath_or_string), PurePath):
-        purepath_or_string = Path(purepath_or_string)
-    return purepath_or_string.expanduser().resolve()
+    if not issubclass(type(path_or_string), Path):
+        path_or_string = Path(path_or_string)
+    return path_or_string.expanduser().resolve()

@@ -33,17 +33,18 @@ Command line utilities.
 """
 
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Optional, TypeAlias, Union
 
-import click
-from click.types import ParamType, IntRange
-from click_extra import ChoiceSource, EnumChoice, ExtraContext, HelpExtraFormatter, Style, TableFormat, option
-from click_extra.colorize import default_theme
+from click_extra import ChoiceSource, EnumChoice, ExtraContext, HelpExtraFormatter, IntRange, ParamType, Path, Style, TableFormat, option
+from click_extra.theme import get_default_theme
 
 
-def click_path(spec: Optional[str]) -> click.Path:
+ClickPath: TypeAlias = Path
+
+
+def click_path(spec: Optional[str]) -> ClickPath:
     """
-    Generates a ``click.Path`` based on a specification string.
+    Generates a ``ClickPath`` (``click.Path``) based on a specification string.
 
     The specification string can contain the following specifier characters:
 
@@ -147,15 +148,15 @@ def click_path(spec: Optional[str]) -> click.Path:
             allow_dash = True
         else:
             raise ValueError(f'unknown specification character "{char}": {spec}')
-    return click.Path(allow_dash=allow_dash,
-                      dir_okay=dir_okay,
-                      executable=executable,
-                      exists=exists,
-                      file_okay=file_okay,
-                      path_type=path_type,
-                      readable=readable,
-                      resolve_path=resolve_path,
-                      writable=writable)
+    return ClickPath(allow_dash=allow_dash,
+                     dir_okay=dir_okay,
+                     executable=executable,
+                     exists=exists,
+                     file_okay=file_okay,
+                     path_type=path_type,
+                     readable=readable,
+                     resolve_path=resolve_path,
+                     writable=writable)
 
 
 #: Composes the given decorators, so that
@@ -209,7 +210,7 @@ def make_extra_context_settings() -> dict[str, Any]:
     """
     return ExtraContext.settings(
         formatter_settings=HelpExtraFormatter.settings(
-            theme=default_theme.with_(
+            theme=get_default_theme().with_(
                 invoked_command=Style(bold=True)
             )
         )

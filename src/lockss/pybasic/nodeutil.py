@@ -38,7 +38,7 @@ import re
 from typing import Annotated, Any, ClassVar, Literal, Optional, Union
 
 from annotated_types import Ge, Le
-from pydantic import BaseModel, BeforeValidator, Field, TypeAdapter, model_validator
+from pydantic import BaseModel, BeforeValidator, Field, TypeAdapter
 
 
 #: An annotated type for port numbers (0-65535)
