@@ -2,7 +2,7 @@
 lockss-pybasic
 ==============
 
-.. |RELEASE| replace:: 0.3.0-dev5
+.. |RELEASE| replace:: 0.3.0-dev6
 .. |RELEASE_DATE| replace:: NOT YET RELEASED
 
 **Latest release:** |RELEASE| (|RELEASE_DATE|)
@@ -43,3 +43,9 @@ Release Notes
 -------------
 
 See `<CHANGELOG.rst>`_.
+
+----------
+Unit Tests
+----------
+
+Run ``python -m unittest discover tests`` at the root of the project tree (where there is a directory called ``tests``).

@@ -85,10 +85,10 @@ class TestNodeUtil(TestCase):
                 e0 = validation_err.errors()[0]
                 if hr.endswith(':'):
                     self.assertEqual(e0['type'], 'value_error')
-                    self.assertEqual(e0['msg'], f'Value error, Invalid node specification string: {hr}')
+                    self.assertEqual(e0['msg'], f'Value error, Invalid compact node specification: {hr}')
                 elif repo == '333' and not any(five):
                     self.assertEqual(e0['type'], 'value_error')
-                    self.assertEqual(e0['msg'], f'Value error, Invalid repository/UI port in node specification string: {repo}')
+                    self.assertEqual(e0['msg'], f'Value error, Invalid repository/UI port in compact node specification: {repo}')
                 elif repo == '666666':
                     self.assertEqual(e0['type'], 'less_than_equal')
                     self.assertEqual(e0['msg'], 'Input should be less than or equal to 65535')

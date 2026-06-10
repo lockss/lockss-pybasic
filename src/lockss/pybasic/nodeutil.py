@@ -128,17 +128,17 @@ class NodeSpec2(BaseNodeSpec):
                              description="The node's SOAP Compatibility Service REST API Port")
 
 
-_RE_NODE_REFERENCE: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+|(?=:))(:(?P<configuration>\d+|(?=:))(:(?P<poller>\d+|(?=:))(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
+_RE_COMPACT_NODE_SPEC: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+|(?=:))(:(?P<configuration>\d+|(?=:))(:(?P<poller>\d+|(?=:))(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
 
 
 #: A type for LOCKSS node specification strings.
-NodeSpecStr = str
+CompactNodeSpec = str
 
 
-def _parse_node_spec_string(node_spec_string: NodeSpecStr) -> dict[str, str]:
-    mat: Optional[Match[str]] = _RE_NODE_REFERENCE.fullmatch(node_spec_string)
+def _parse_compact_node_spec(compact_node_spec: CompactNodeSpec) -> dict[str, str]:
+    mat: Optional[Match[str]] = _RE_COMPACT_NODE_SPEC.fullmatch(compact_node_spec)
     if mat is None:
-        raise ValueError(f'Invalid node specification string: {node_spec_string}')
+        raise ValueError(f'Invalid compact node specification: {compact_node_spec}')
     d = dict(host=mat.group('host'))
     if prot := mat.group('protocol'):
         d['protocol'] = prot
@@ -153,7 +153,7 @@ def _parse_node_spec_string(node_spec_string: NodeSpecStr) -> dict[str, str]:
             d['type'] = NodeTypeEnum.V1.value
             d['ui'] = repo_or_ui
         else:
-            raise ValueError(f'Invalid repository/UI port in node specification string: {repo_or_ui}')
+            raise ValueError(f'Invalid repository/UI port in compact node specification: {repo_or_ui}')
     else:
         # Assume V2
         d['type'] = NodeTypeEnum.V2.value
@@ -163,17 +163,17 @@ def _parse_node_spec_string(node_spec_string: NodeSpecStr) -> dict[str, str]:
     return d
 
 
-def _maybe_deserialize_node_spec_string(value: Any) -> Any:
-    if isinstance(value, NodeSpecStr) and not value.startswith('{'):
-        return _parse_node_spec_string(value)
+def _maybe_deserialize_compact_node_spec(value: Any) -> Any:
+    if isinstance(value, CompactNodeSpec) and not value.startswith('{'):
+        return _parse_compact_node_spec(value)
     return value
 
 
 #: A type for LOCKSS node specifications, that also accepts a compact LOCKSS
-#: node specification string.
+#: node specification.
 NodeSpec = Annotated[
     Annotated[Union[NodeSpec1, NodeSpec2], Field(discriminator='type')],
-    BeforeValidator(_maybe_deserialize_node_spec_string)
+    BeforeValidator(_maybe_deserialize_compact_node_spec)
 ]
 
 
