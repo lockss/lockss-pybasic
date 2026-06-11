@@ -77,8 +77,7 @@ class BaseNodeSpec(BaseModel):
     kind: NodeSpecKind = Field(title='Kind',
                                description="This object's kind")
 
-    id: NodeIdentifier = Field(default='',
-                               title='Node Identifier',
+    id: NodeIdentifier = Field(title='Node Identifier',
                                description='An identifier for the node')
 
     protocol: NodeProtocolEnum = Field(default=DEFAULT_PROTOCOL,
@@ -98,9 +97,6 @@ class NodeSpec1(BaseNodeSpec):
     ui: PortNumber = Field(default=DEFAULT_UI_PORT_V1,
                            title='UI Port',
                            description="The LOCKSS 1.x node's Web user interface port")
-
-    def __str__(self) -> str:
-        return f'{self.protocol.value}://{self.host}:{self.ui}'
 
 
 class NodeSpec2(BaseNodeSpec):
@@ -143,9 +139,6 @@ class NodeSpec2(BaseNodeSpec):
                              title='SOAP Port',
                              description="The node's SOAP Compatibility Service REST API Port")
 
-    def __str__(self) -> str:
-        return f'{self.protocol.value}://{self.host}:{self.repository}:{self.configuration}:{self.poller}:{self.crawler}:{self.metadata}:{self.soap}'
-
 
 _RE_COMPACT_NODE_SPEC: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+|(?=:))(:(?P<configuration>\d+|(?=:))(:(?P<poller>\d+|(?=:))(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
 
@@ -158,7 +151,7 @@ def _parse_compact_node_spec(compact_node_spec: CompactNodeSpec) -> dict[str, st
     mat: Optional[Match[str]] = _RE_COMPACT_NODE_SPEC.fullmatch(compact_node_spec)
     if mat is None:
         raise ValueError(f'Invalid compact node specification: {compact_node_spec}')
-    d = dict(kind='NodeSpec', host=mat.group('host'))
+    d = dict(kind='NodeSpec', id=compact_node_spec, host=mat.group('host'))
     if prot := mat.group('protocol'):
         d['protocol'] = prot
     five = ('configuration', 'poller', 'crawler', 'metadata', 'soap')
