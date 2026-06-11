@@ -37,7 +37,7 @@ from unittest import TestCase
 
 from pydantic import ValidationError
 
-from lockss.pybasic.nodeutil import NodeProtocolEnum, NodeSet, NodeSpec, NodeSpec1, NodeSpec2, NodeTypeEnum, get_node_spec_adapter
+from lockss.pybasic.nodeutil import NodeProtocolEnum, NodeSet, NodeSpec, NodeSpec2, NodeTypeEnum, get_node_spec_adapter
 
 
 class TestNodeUtil(TestCase):
@@ -126,23 +126,33 @@ class TestNodeUtil(TestCase):
             'kind': 'NodeSet',
             'id': 'mynodeset',
             'name': 'My Node Set',
-            'nodes': {
-                'node1': {
+            'nodes': [
+                {
+                    'kind': 'NodeSpec',
+                    'id': 'node1',
                     'type': 'v1',
                     'host': 'myhost1',
+                    'ui': 1234
                 },
-                'node2': 'myhost2:4444',
-                'node3': 'myhost3:55555'
-            }
+                'myhost2:4444',
+                'myhost3:55555'
+            ]
         }
         ns1 = NodeSet(**data1)
+        self.assertEqual(ns1.kind, 'NodeSet')
+        self.assertEqual(ns1.id, 'mynodeset')
+        self.assertEqual(ns1.name, 'My Node Set')
         self.assertEqual(len(nodes := ns1.nodes), 3)
-        self.assertEqual((n1 := nodes['node1']).type, NodeTypeEnum.V1.value)
+        self.assertEqual((n1 := nodes[0]).kind, 'NodeSpec')
+        self.assertEqual(n1.type, NodeTypeEnum.V1.value)
         self.assertEqual(n1.host, 'myhost1')
-        self.assertEqual(n1.ui, NodeSpec1.DEFAULT_UI_PORT_V1)
-        self.assertEqual((n2 := nodes['node2']).type, NodeTypeEnum.V1.value)
+        self.assertEqual(n1.ui, 1234)
+        self.assertEqual(str(n1), 'http://myhost1:1234')
+        self.assertEqual((n2 := nodes[1]).type, NodeTypeEnum.V1.value)
         self.assertEqual(n2.host, 'myhost2')
         self.assertEqual(n2.ui, 4444)
-        self.assertEqual((n3 := nodes['node3']).type, NodeTypeEnum.V2.value)
+        self.assertEqual(str(n2), 'http://myhost2:4444')
+        self.assertEqual((n3 := nodes[2]).type, NodeTypeEnum.V2.value)
         self.assertEqual(n3.host, 'myhost3')
         self.assertEqual(n3.repository, 55555)
+        self.assertEqual(str(n3), 'http://myhost3:55555:24612:24613:24614:24615:24616')

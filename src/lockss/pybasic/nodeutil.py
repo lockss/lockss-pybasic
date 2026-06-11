@@ -35,14 +35,14 @@ LOCKSS node utilities.
 from enum import Enum
 from re import Match, Pattern
 import re
-from typing import Annotated, Any, ClassVar, Literal, Optional, Union
+from typing import Annotated, Any, ClassVar, Literal, Optional, TypeAlias, Union
 
 from annotated_types import Ge, Le
 from pydantic import BaseModel, BeforeValidator, Field, TypeAdapter
 
 
 #: An annotated type for port numbers (0-65535)
-PortNumber = Annotated[int, Ge(0), Le(65535)]
+PortNumber: TypeAlias = Annotated[int, Ge(0), Le(65535)]
 
 
 class NodeTypeEnum(Enum):
@@ -61,12 +61,25 @@ class NodeProtocolEnum(Enum):
     HTTPS = 'https'
 
 
+NodeSpecKind: TypeAlias = Literal['NodeSpec']
+
+
+NodeIdentifier: TypeAlias = str
+
+
 class BaseNodeSpec(BaseModel):
 
     DEFAULT_PROTOCOL: ClassVar[NodeProtocolEnum] = NodeProtocolEnum.HTTP
 
     TYPE_FIELD: ClassVar[dict[str, str]] = dict(title='Type',
                                                 description="The node's type")
+
+    kind: NodeSpecKind = Field(title='Kind',
+                               description="This object's kind")
+
+    id: NodeIdentifier = Field(default='',
+                               title='Node Identifier',
+                               description='An identifier for the node')
 
     protocol: NodeProtocolEnum = Field(default=DEFAULT_PROTOCOL,
                                        title='Protocol',
@@ -85,6 +98,9 @@ class NodeSpec1(BaseNodeSpec):
     ui: PortNumber = Field(default=DEFAULT_UI_PORT_V1,
                            title='UI Port',
                            description="The LOCKSS 1.x node's Web user interface port")
+
+    def __str__(self) -> str:
+        return f'{self.protocol.value}://{self.host}:{self.ui}'
 
 
 class NodeSpec2(BaseNodeSpec):
@@ -127,19 +143,22 @@ class NodeSpec2(BaseNodeSpec):
                              title='SOAP Port',
                              description="The node's SOAP Compatibility Service REST API Port")
 
+    def __str__(self) -> str:
+        return f'{self.protocol.value}://{self.host}:{self.repository}:{self.configuration}:{self.poller}:{self.crawler}:{self.metadata}:{self.soap}'
+
 
 _RE_COMPACT_NODE_SPEC: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+|(?=:))(:(?P<configuration>\d+|(?=:))(:(?P<poller>\d+|(?=:))(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
 
 
 #: A type for LOCKSS node specification strings.
-CompactNodeSpec = str
+CompactNodeSpec: TypeAlias = str
 
 
 def _parse_compact_node_spec(compact_node_spec: CompactNodeSpec) -> dict[str, str]:
     mat: Optional[Match[str]] = _RE_COMPACT_NODE_SPEC.fullmatch(compact_node_spec)
     if mat is None:
         raise ValueError(f'Invalid compact node specification: {compact_node_spec}')
-    d = dict(host=mat.group('host'))
+    d = dict(kind='NodeSpec', host=mat.group('host'))
     if prot := mat.group('protocol'):
         d['protocol'] = prot
     five = ('configuration', 'poller', 'crawler', 'metadata', 'soap')
@@ -147,7 +166,7 @@ def _parse_compact_node_spec(compact_node_spec: CompactNodeSpec) -> dict[str, st
         if any(mat.group(x) for x in five) or len(repo_or_ui) >= 5:
             # 10000 or larger: assume V2
             d['type'] = NodeTypeEnum.V2.value
-            d['repository'] = repo_or_ui
+            d['repository'] = repo_or_ui # all these strings will be coerced to int
         elif len(repo_or_ui) == 4:
             # 1000 through 9999: assume V1
             d['type'] = NodeTypeEnum.V1.value
@@ -159,7 +178,7 @@ def _parse_compact_node_spec(compact_node_spec: CompactNodeSpec) -> dict[str, st
         d['type'] = NodeTypeEnum.V2.value
     for k in five:
         if p := mat.group(k):
-            d[k] = p # string okay, will be coerced to int
+            d[k] = p
     return d
 
 
@@ -171,7 +190,7 @@ def _maybe_deserialize_compact_node_spec(value: Any) -> Any:
 
 #: A type for LOCKSS node specifications, that also accepts a compact LOCKSS
 #: node specification.
-NodeSpec = Annotated[
+NodeSpec: TypeAlias = Annotated[
     Annotated[Union[NodeSpec1, NodeSpec2], Field(discriminator='type')],
     BeforeValidator(_maybe_deserialize_compact_node_spec)
 ]
@@ -191,13 +210,10 @@ def get_node_spec_adapter() -> TypeAdapter[NodeSpec]:
     return _node_spec_adapter
 
 
-NodeSetKind = Literal['NodeSet']
+NodeSetKind: TypeAlias = Literal['NodeSet']
 
 
-NodeSetIdentifier = str
-
-
-NodeIdentifier = str
+NodeSetIdentifier: TypeAlias = str
 
 
 class NodeSet(BaseModel):
@@ -211,6 +227,6 @@ class NodeSet(BaseModel):
     name: str = Field(title='Node Set Name',
                       description='A name for the node set')
 
-    nodes: dict[NodeIdentifier, NodeSpec] = Field(min_length=1,
-                                                  title='Nodes',
-                                                  description='A non-empty list of nodes')
+    nodes: list[NodeSpec] = Field(min_length=1,
+                                  title='Nodes',
+                                  description='A non-empty list of nodes')
