@@ -35,11 +35,11 @@ Command line utilities.
 from pathlib import Path
 from typing import Any, Optional, TypeAlias, Union
 
-from click_extra import ChoiceSource, EnumChoice, ExtraContext, HelpExtraFormatter, IntRange, ParamType, Path, Style, TableFormat, option
+from click_extra import ChoiceSource, EnumChoice, ExtraContext, HelpExtraFormatter, IntRange, ParamType, Path as _ClickPath, Style, TableFormat, option
 from click_extra.theme import get_default_theme
 
 
-ClickPath: TypeAlias = Path
+ClickPath: TypeAlias = _ClickPath
 
 
 def click_path(spec: Optional[str]) -> ClickPath:
