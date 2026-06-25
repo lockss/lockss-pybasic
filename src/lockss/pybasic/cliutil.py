@@ -35,7 +35,7 @@ Command line utilities.
 from pathlib import Path
 from typing import Any, Optional, TypeAlias, Union
 
-from click_extra import ChoiceSource, EnumChoice, ExtraContext, HelpExtraFormatter, IntRange, ParamType, Path as _ClickPath, Style, TableFormat, option
+from click_extra import ChoiceSource, Context, EnumChoice, HelpFormatter, IntRange, ParamType, Path as _ClickPath, Style, TableFormat, option
 from click_extra.theme import get_default_theme
 
 
@@ -208,8 +208,8 @@ def make_extra_context_settings() -> dict[str, Any]:
     :return: A custom ``click_Extra.ExtraContext``.
     :rtype: dict[str, Any]
     """
-    return ExtraContext.settings(
-        formatter_settings=HelpExtraFormatter.settings(
+    return Context.settings(
+        formatter_settings=HelpFormatter.settings(
             theme=get_default_theme().with_(
                 invoked_command=Style(bold=True)
             )
@@ -235,3 +235,7 @@ NonPositiveInt: ParamType = IntRange(min=None, max=0)
 
 #: A ``click.ParamType`` for unsigned 16-bit integers (0 to 65535).
 UInt16: ParamType = IntRange(min=0, max=65535)
+
+
+#: A ``click.ParamType`` alias for port numbers (UInt16).
+PortNumber: TypeAlias = UInt16
