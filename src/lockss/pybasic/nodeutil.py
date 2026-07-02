@@ -38,7 +38,7 @@ import re
 from typing import Annotated, Any, ClassVar, Literal, Optional, TypeAlias, Union
 
 from annotated_types import Ge, Le
-from pydantic import BaseModel, BeforeValidator, Field, TypeAdapter
+from pydantic import BaseModel, BeforeValidator, Field, TypeAdapter, model_validator
 
 
 #: An annotated type for port numbers (0-65535)
@@ -47,10 +47,13 @@ PortNumber: TypeAlias = Annotated[int, Ge(0), Le(65535)]
 
 class NodeTypeEnum(Enum):
     """An enumerated type representing LOCKSS node types."""
-    #: An enumerated constant representing LOCKSS 1.x nodes.
+    #: An enumerated constant representing a LOCKSS 1.x node.
     V1 = 'v1'
-    #: An enumerated constant representing LOCKSS 2.x nodes.
+    #: An enumerated constant representing a LOCKSS 2.x node.
     V2 = 'v2'
+    #: An enumerated constant representing a LOCKSS 1.x and 2.x node pair in
+    #: migration mode.
+    V1_V2_MIGRATION_PAIR = 'v1-v2-migration-pair'
 
 
 class NodeProtocolEnum(Enum):
@@ -84,9 +87,6 @@ class BaseNodeSpec(BaseModel):
                                        title='Protocol',
                                        description="The protocol for reaching the node")
 
-    host: str = Field(title='Host',
-                      description="The node's host")
-
 
 class NodeSpec1(BaseNodeSpec):
 
@@ -94,9 +94,17 @@ class NodeSpec1(BaseNodeSpec):
 
     type: Literal['v1'] = Field(**BaseNodeSpec.TYPE_FIELD)
 
+    host: str = Field(title='Host',
+                      description="The node's host")
+
     ui: PortNumber = Field(default=DEFAULT_UI_PORT_V1,
                            title='UI Port',
                            description="The LOCKSS 1.x node's Web user interface port")
+
+    @model_validator(mode='before')
+    @classmethod
+    def _parse_compact_node_spec(cls, data: Any) -> Any:
+        return _maybe_deserialize_compact_node_spec(data)
 
 
 class NodeSpec2(BaseNodeSpec):
@@ -114,6 +122,9 @@ class NodeSpec2(BaseNodeSpec):
     DEFAULT_SOAP_PORT: ClassVar[int] = 24616
 
     type: Literal['v2'] = Field(**BaseNodeSpec.TYPE_FIELD)
+
+    host: str = Field(title='Host',
+                      description="The node's host")
 
     repository: PortNumber = Field(default=DEFAULT_REPO_PORT,
                                    title='Repository Port',
@@ -138,6 +149,22 @@ class NodeSpec2(BaseNodeSpec):
     soap: PortNumber = Field(default=DEFAULT_SOAP_PORT,
                              title='SOAP Port',
                              description="The node's SOAP Compatibility Service REST API Port")
+
+    @model_validator(mode='before')
+    @classmethod
+    def _parse_compact_node_spec(cls, data: Any) -> Any:
+        return _maybe_deserialize_compact_node_spec(data)
+
+
+class NodeSpec12Pair(BaseNodeSpec):
+
+    type: Literal['v1-v2-migration-pair'] = Field(**BaseNodeSpec.TYPE_FIELD)
+
+    origin: NodeSpec1 = Field(title='Origin',
+                              description='The origin node (LOCKSS 1.x)')
+
+    destination: NodeSpec2 = Field(title='Destination',
+                                   description='The destination node (LOCKSS 2.x)')
 
 
 _RE_COMPACT_NODE_SPEC: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+|(?=:))(:(?P<configuration>\d+|(?=:))(:(?P<poller>\d+|(?=:))(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
@@ -184,7 +211,7 @@ def _maybe_deserialize_compact_node_spec(value: Any) -> Any:
 #: A type for LOCKSS node specifications, that also accepts a compact LOCKSS
 #: node specification.
 NodeSpec: TypeAlias = Annotated[
-    Annotated[Union[NodeSpec1, NodeSpec2], Field(discriminator='type')],
+    Annotated[Union[NodeSpec1, NodeSpec2, NodeSpec12Pair], Field(discriminator='type')],
     BeforeValidator(_maybe_deserialize_compact_node_spec)
 ]
 

@@ -42,15 +42,15 @@ from lockss.pybasic.nodeutil import NodeProtocolEnum, NodeSet, NodeSpec, NodeSpe
 
 class TestNodeUtil(TestCase):
 
-    def test_node_spec(self):
+    def test_compact_node_spec(self):
         host = 'myhost'
-        def _test_node_spec(proto: str,
-                            repo: Optional[str],
-                            cfg: Optional[bool],
-                            pol: Optional[bool],
-                            crw: Optional[bool],
-                            md: Optional[bool],
-                            soa: Optional[bool]) -> None:
+        def _test_compact_node_spec(proto: str,
+                                    repo: Optional[str],
+                                    cfg: Optional[bool],
+                                    pol: Optional[bool],
+                                    crw: Optional[bool],
+                                    md: Optional[bool],
+                                    soa: Optional[bool]) -> None:
             hr = f'{proto}{host}'
             if repo is not None:
                 hr = f'{hr}:{repo}'
@@ -100,26 +100,26 @@ class TestNodeUtil(TestCase):
         for proto in ('', *(f'{p.value}://' for p in NodeProtocolEnum)):
             for repo in (None, '', '333', '4444', '55555', '666666'):
                 if repo is None:
-                    _test_node_spec(proto, repo, None, None, None, None, None)
+                    _test_compact_node_spec(proto, repo, None, None, None, None, None)
                 else:
                     for cfg in (None, False, True):
                         if cfg is None:
-                            _test_node_spec(proto, repo, cfg, None, None, None, None)
+                            _test_compact_node_spec(proto, repo, cfg, None, None, None, None)
                         else:
                             for pol in (None, False, True):
                                 if pol is None:
-                                    _test_node_spec(proto, repo, cfg, pol, None, None, None)
+                                    _test_compact_node_spec(proto, repo, cfg, pol, None, None, None)
                                 else:
                                     for crw in (None, False, True):
                                         if crw is None:
-                                            _test_node_spec(proto, repo, cfg, pol, crw, None, None)
+                                            _test_compact_node_spec(proto, repo, cfg, pol, crw, None, None)
                                         else:
                                             for md in (None, False, True):
                                                 if md is None:
-                                                    _test_node_spec(proto, repo, cfg, pol, crw, md, None)
+                                                    _test_compact_node_spec(proto, repo, cfg, pol, crw, md, None)
                                                 else:
                                                     for soa in (None, False, True):
-                                                        _test_node_spec(proto, repo, cfg, pol, crw, md, soa)
+                                                        _test_compact_node_spec(proto, repo, cfg, pol, crw, md, soa)
 
     def test_node_set(self):
         data1 = {
@@ -135,14 +135,21 @@ class TestNodeUtil(TestCase):
                     'ui': 1234
                 },
                 'myhost2:4444',
-                'myhost3:55555'
+                'myhost3:55555',
+                {
+                    'kind': 'NodeSpec',
+                    'id': 'migrate1',
+                    'type': 'v1-v2-migration-pair',
+                    'origin': 'migrate1a:1111',
+                    'destination': 'migrate1b:11111',
+                }
             ]
         }
         ns1 = NodeSet(**data1)
         self.assertEqual(ns1.kind, 'NodeSet')
         self.assertEqual(ns1.id, 'mynodeset')
         self.assertEqual(ns1.name, 'My Node Set')
-        self.assertEqual(len(nodes := ns1.nodes), 3)
+        self.assertEqual(len(nodes := ns1.nodes), 4)
         self.assertEqual((n1 := nodes[0]).kind, 'NodeSpec')
         self.assertEqual(n1.id, 'node1')
         self.assertEqual(n1.type, NodeTypeEnum.V1.value)
@@ -156,3 +163,13 @@ class TestNodeUtil(TestCase):
         self.assertEqual(n3.id, 'myhost3:55555')
         self.assertEqual(n3.host, 'myhost3')
         self.assertEqual(n3.repository, 55555)
+        self.assertEqual((n4 := nodes[3]).type, NodeTypeEnum.V1_V2_MIGRATION_PAIR.value)
+        self.assertEqual(n4.id, 'migrate1')
+        self.assertEqual((n4a := n4.origin).type, NodeTypeEnum.V1.value)
+        self.assertEqual(n4a.id, 'migrate1a:1111')
+        self.assertEqual(n4a.host, 'migrate1a')
+        self.assertEqual(n4a.ui, 1111)
+        self.assertEqual((n4b := n4.destination).type, NodeTypeEnum.V2.value)
+        self.assertEqual(n4b.id, 'migrate1b:11111')
+        self.assertEqual(n4b.host, 'migrate1b')
+        self.assertEqual(n4b.repository, 11111)
