@@ -97,9 +97,11 @@ class NodeSpec1(BaseNodeSpec):
     host: str = Field(title='Host',
                       description="The node's host")
 
-    ui: PortNumber = Field(default=DEFAULT_UI_PORT_V1,
-                           title='UI Port',
+    ui: PortNumber = Field(title='UI Port',
                            description="The LOCKSS 1.x node's Web user interface port")
+
+    def get_host(self) -> str:
+        return f'{self.protocol.value}://{self.host}:{self.ui}'
 
     @model_validator(mode='before')
     @classmethod
@@ -126,29 +128,47 @@ class NodeSpec2(BaseNodeSpec):
     host: str = Field(title='Host',
                       description="The node's host")
 
-    repository: PortNumber = Field(default=DEFAULT_REPO_PORT,
-                                   title='Repository Port',
+    repository: PortNumber = Field(title='Repository Port',
                                    description="The node's Repository Service REST API Port")
 
-    configuration: PortNumber = Field(default=DEFAULT_CFG_PORT,
-                                      title='Configuration Port',
+    configuration: PortNumber = Field(title='Configuration Port',
                                       description="The node's Configuration Service REST API Port")
 
-    poller: PortNumber = Field(default=DEFAULT_POL_PORT,
-                               title='Poller Port',
+    poller: PortNumber = Field(title='Poller Port',
                                description="The node's Poller Service REST API Port")
 
-    crawler: PortNumber = Field(default=DEFAULT_CRW_PORT,
-                                title='Crawler Port',
-                                description="The node's Crawler Service REST API Port")
+    crawler: Optional[PortNumber] = Field(default=None,
+                                          title='Crawler Port',
+                                          description="The node's Crawler Service REST API Port")
 
-    metadata: PortNumber = Field(default=DEFAULT_MD_PORT,
-                                 title='Metadata Port',
-                                 description="The node's Metadata Service REST API Port")
+    metadata: Optional[PortNumber] = Field(default=None,
+                                           title='Metadata Port',
+                                           description="The node's Metadata Service REST API Port")
 
-    soap: PortNumber = Field(default=DEFAULT_SOAP_PORT,
-                             title='SOAP Port',
-                             description="The node's SOAP Compatibility Service REST API Port")
+    soap: Optional[PortNumber] = Field(default=None,
+                                       title='SOAP Port',
+                                       description="The node's SOAP Compatibility Service REST API Port")
+
+    def get_repository_host(self) -> str:
+        return self._generic_get_host(self.repository)
+
+    def get_configuration_host(self) -> str:
+        return self._generic_get_host(self.configuration)
+
+    def get_poller_host(self) -> str:
+        return self._generic_get_host(self.poller)
+
+    def get_crawler_host(self) -> str:
+        return self._generic_get_host(self.crawler)
+
+    def get_metadata_host(self) -> str:
+        return self._generic_get_host(self.metadata)
+
+    def get_soap_host(self) -> str:
+        return self._generic_get_host(self.soap)
+
+    def _generic_get_host(self, port: Optional[PortNumber]) -> str:
+        return f'{self.protocol}://{self.host}:{port}'
 
     @model_validator(mode='before')
     @classmethod
@@ -167,11 +187,13 @@ class NodeSpec12Pair(BaseNodeSpec):
                                    description='The destination node (LOCKSS 2.x)')
 
 
-_RE_COMPACT_NODE_SPEC: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+|(?=:))(:(?P<configuration>\d+|(?=:))(:(?P<poller>\d+|(?=:))(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
-
+#_RE_COMPACT_NODE_SPEC: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d+)(:(?P<configuration>\d+)(:(?P<poller>\d+)(:(?P<crawler>\d+|(?=:))(:(?P<metadata>\d+|(?=:))(:(?P<soap>\d+))?)?)?)?)?)?')
 
 #: A type for LOCKSS node specification strings.
 CompactNodeSpec: TypeAlias = str
+
+
+_RE_COMPACT_NODE_SPEC: Pattern[str] = re.compile(r'((?P<protocol>https?)://)?(?P<host>[^:]+)(:(?P<repository>\d*)(?P<v2>:(?P<configuration>\d*)(:(?P<poller>\d*)(:(?P<crawler>\d*)(:(?P<metadata>\d*)(:(?P<soap>\d*))?)?)?)?)?)?')
 
 
 def _parse_compact_node_spec(compact_node_spec: CompactNodeSpec) -> dict[str, str]:
@@ -181,24 +203,15 @@ def _parse_compact_node_spec(compact_node_spec: CompactNodeSpec) -> dict[str, st
     d = dict(kind='NodeSpec', id=compact_node_spec, host=mat.group('host'))
     if prot := mat.group('protocol'):
         d['protocol'] = prot
-    five = ('configuration', 'poller', 'crawler', 'metadata', 'soap')
-    if repo_or_ui := mat.group('repository'):
-        if any(mat.group(x) for x in five) or len(repo_or_ui) >= 5:
-            # 10000 or larger: assume V2
-            d['type'] = NodeTypeEnum.V2.value
-            d['repository'] = repo_or_ui # all these strings will be coerced to int
-        elif len(repo_or_ui) == 4:
-            # 1000 through 9999: assume V1
-            d['type'] = NodeTypeEnum.V1.value
-            d['ui'] = repo_or_ui
-        else:
-            raise ValueError(f'Invalid repository/UI port in compact node specification: {repo_or_ui}')
-    else:
-        # Assume V2
+    if mat.group('v2'):
         d['type'] = NodeTypeEnum.V2.value
-    for k in five:
-        if p := mat.group(k):
-            d[k] = p
+        for k in ('repository', 'configuration', 'poller', 'crawler', 'metadata', 'soap'):
+            if v := mat.group(k):
+                d[k] = v
+    else:
+        d['type'] = NodeTypeEnum.V1.value
+        if v := mat.group('repository'):
+            d['ui'] = v
     return d
 
 

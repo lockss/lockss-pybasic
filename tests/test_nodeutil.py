@@ -44,82 +44,118 @@ class TestNodeUtil(TestCase):
 
     def test_compact_node_spec(self):
         host = 'myhost'
-        def _test_compact_node_spec(proto: str,
-                                    repo: Optional[str],
-                                    cfg: Optional[bool],
-                                    pol: Optional[bool],
-                                    crw: Optional[bool],
-                                    md: Optional[bool],
-                                    soa: Optional[bool]) -> None:
-            hr = f'{proto}{host}'
-            if repo is not None:
-                hr = f'{hr}:{repo}'
+        def _test_compact_node_spec(proto: Optional[NodeProtocolEnum],
+                                    repo_or_ui: Optional[str],
+                                    cfg: Optional[str],
+                                    pol: Optional[str],
+                                    crw: Optional[str],
+                                    md: Optional[str],
+                                    soa: Optional[str]) -> None:
+            hr = f'{f"{proto.value}://" if proto else ""}{host}'
+            if repo_or_ui is not None:
+                hr = f'{hr}:{repo_or_ui}'
                 if cfg is not None:
-                    hr = f'{hr}{":2" if cfg else ":"}'
+                    hr = f'{hr}:{cfg}'
                     if pol is not None:
-                        hr = f'{hr}{":3" if pol else ":"}'
+                        hr = f'{hr}:{pol}'
                         if crw is not None:
-                            hr = f'{hr}{":4" if crw else ":"}'
+                            hr = f'{hr}:{crw}'
                             if md is not None:
-                                hr = f'{hr}{":5" if md else ":"}'
+                                hr = f'{hr}:{md}'
                                 if soa is not None:
-                                    hr = f'{hr}{":6" if soa else ":"}'
-            five = (cfg, pol, crw, md, soa)
-            try:
-                spec: NodeSpec = get_node_spec_adapter().validate_python(hr)
-                self.assertEqual(spec.protocol, NodeProtocolEnum.HTTPS if proto == 'https://' else NodeProtocolEnum.HTTP) # else includes proto == ''
-                self.assertEqual(spec.host, host)
-                if not any(five) and repo == '4444':
-                    self.assertEqual(spec.type, NodeTypeEnum.V1.value)
-                    self.assertEqual(spec.ui, int(repo))
-                else:
-                    self.assertEqual(spec.type, NodeTypeEnum.V2.value)
-                    self.assertEqual(spec.repository, int(repo) if repo else NodeSpec2.DEFAULT_REPO_PORT)
-                    self.assertEqual(spec.configuration, 2 if cfg else NodeSpec2.DEFAULT_CFG_PORT)
-                    self.assertEqual(spec.poller, 3 if pol else NodeSpec2.DEFAULT_POL_PORT)
-                    self.assertEqual(spec.crawler, 4 if crw else NodeSpec2.DEFAULT_CRW_PORT)
-                    self.assertEqual(spec.metadata, 5 if md else NodeSpec2.DEFAULT_MD_PORT)
-                    self.assertEqual(spec.soap, 6 if soa else NodeSpec2.DEFAULT_SOAP_PORT)
-            except ValidationError as validation_err:
-                self.assertEqual(validation_err.error_count(), 1)
-                e0 = validation_err.errors()[0]
-                if hr.endswith(':'):
-                    self.assertEqual(e0['type'], 'value_error')
-                    self.assertEqual(e0['msg'], f'Value error, Invalid compact node specification: {hr}')
-                elif repo == '333' and not any(five):
-                    self.assertEqual(e0['type'], 'value_error')
-                    self.assertEqual(e0['msg'], f'Value error, Invalid repository/UI port in compact node specification: {repo}')
-                elif repo == '666666':
-                    self.assertEqual(e0['type'], 'less_than_equal')
-                    self.assertEqual(e0['msg'], 'Input should be less than or equal to 65535')
-                else:
-                    self.fail(f'Unexpected ValidationError: {hr}')
-            except ValueError as value_err:
-                self.fail(f'Unexpected ValueError: {hr}')
-
-        for proto in ('', *(f'{p.value}://' for p in NodeProtocolEnum)):
-            for repo in (None, '', '333', '4444', '55555', '666666'):
-                if repo is None:
-                    _test_compact_node_spec(proto, repo, None, None, None, None, None)
-                else:
-                    for cfg in (None, False, True):
-                        if cfg is None:
-                            _test_compact_node_spec(proto, repo, cfg, None, None, None, None)
+                                    hr = f'{hr}:{soa}'
+            with (self.subTest(hr=hr)):
+                required = (repo_or_ui, cfg, pol)
+                optional = (crw, md, soa)
+                five = (*required[1:], *optional)
+                try:
+                    if repo_or_ui and ((cfg and pol) or all(x is None for x in five)):
+                        # This parses as either v1 or v2
+                        spec: NodeSpec = get_node_spec_adapter().validate_python(hr)
+                        self.assertEqual(spec.protocol, proto if proto else NodeProtocolEnum.HTTP)
+                        self.assertEqual(spec.host, host)
+                        self.assertTrue(repo_or_ui)
+                        if all(x is None for x in five):
+                            # This is v1
+                            self.assertEqual(spec.type, NodeTypeEnum.V1.value)
+                            self.assertEqual(spec.ui, int(repo_or_ui))
                         else:
-                            for pol in (None, False, True):
+                            # This is v2
+                            self.assertTrue(cfg)
+                            self.assertTrue(pol)
+                            self.assertEqual(spec.type, NodeTypeEnum.V2.value)
+                            self.assertEqual(spec.repository, int(repo_or_ui))
+                            self.assertEqual(spec.configuration, int(cfg))
+                            self.assertEqual(spec.poller, int(pol))
+                            self.assertEqual(spec.crawler, int(crw) if crw else None)
+                            self.assertEqual(spec.metadata, int(md) if md else None)
+                            self.assertEqual(spec.soap, int(soa) if soa else None)
+                    elif repo_or_ui is None or (repo_or_ui == '' and all(x is None for x in five)):
+                        # This parses as v1 but fails
+                        with self.assertRaises(ValidationError) as cm:
+                            get_node_spec_adapter().validate_python(hr)
+                        validation_err: ValidationError = cm.exception
+                        self.assertEqual(validation_err.error_count(), 1)
+                        cur = validation_err.errors()[0]
+                        self.assertEqual(cur['type'], 'missing')
+                        self.assertEqual(cur['msg'], f'Field required')
+                        self.assertEqual(cur['loc'], ('v1', 'ui'))
+                    elif not all (x for x in required):
+                        # This parses as v2 but fails
+                        with self.assertRaises(ValidationError) as cm:
+                            get_node_spec_adapter().validate_python(hr)
+                        validation_err: ValidationError = cm.exception
+                        j = 0
+                        if not repo_or_ui:
+                            self.assertGreater(validation_err.error_count(), j)
+                            cur = validation_err.errors()[j]
+                            self.assertEqual(cur['type'], 'missing')
+                            self.assertEqual(cur['msg'], f'Field required')
+                            self.assertEqual(cur['loc'], ('v2', 'repository'))
+                            j = j + 1
+                        if not cfg:
+                            self.assertGreater(validation_err.error_count(), j)
+                            cur = validation_err.errors()[j]
+                            self.assertEqual(cur['type'], 'missing')
+                            self.assertEqual(cur['msg'], f'Field required')
+                            self.assertEqual(cur['loc'], ('v2', 'configuration'))
+                            j = j + 1
+                        if not pol:
+                            self.assertGreater(validation_err.error_count(), j)
+                            cur = validation_err.errors()[j]
+                            self.assertEqual(cur['type'], 'missing')
+                            self.assertEqual(cur['msg'], f'Field required')
+                            self.assertEqual(cur['loc'], ('v2', 'poller'))
+                            j = j + 1
+                        self.assertEqual(j, sum(0 if x else 1 for x in required))
+                    else:
+                        self.fail(f'Unexpected case: {hr}')
+                except ValueError as value_err:
+                    self.fail(f'Unexpected ValueError: {value_err!s}')
+
+        for proto in (None, *(e for e in NodeProtocolEnum)):
+            for repo_or_ui in (None, '', '111'):
+                if repo_or_ui is None:
+                    _test_compact_node_spec(proto, repo_or_ui, None, None, None, None, None)
+                else:
+                    for cfg in (None, '', '222'):
+                        if cfg is None:
+                            _test_compact_node_spec(proto, repo_or_ui, cfg, None, None, None, None)
+                        else:
+                            for pol in (None, '', '333'):
                                 if pol is None:
-                                    _test_compact_node_spec(proto, repo, cfg, pol, None, None, None)
+                                    _test_compact_node_spec(proto, repo_or_ui, cfg, pol, None, None, None)
                                 else:
-                                    for crw in (None, False, True):
+                                    for crw in (None, '', '444'):
                                         if crw is None:
-                                            _test_compact_node_spec(proto, repo, cfg, pol, crw, None, None)
+                                            _test_compact_node_spec(proto, repo_or_ui, cfg, pol, crw, None, None)
                                         else:
-                                            for md in (None, False, True):
+                                            for md in (None, '', '555'):
                                                 if md is None:
-                                                    _test_compact_node_spec(proto, repo, cfg, pol, crw, md, None)
+                                                    _test_compact_node_spec(proto, repo_or_ui, cfg, pol, crw, md, None)
                                                 else:
-                                                    for soa in (None, False, True):
-                                                        _test_compact_node_spec(proto, repo, cfg, pol, crw, md, soa)
+                                                    for soa in (None, '', '666'):
+                                                        _test_compact_node_spec(proto, repo_or_ui, cfg, pol, crw, md, soa)
 
     def test_node_set(self):
         data1 = {
@@ -132,16 +168,16 @@ class TestNodeUtil(TestCase):
                     'id': 'node1',
                     'type': 'v1',
                     'host': 'myhost1',
-                    'ui': 1234
+                    'ui': 7777
                 },
-                'myhost2:4444',
-                'myhost3:55555',
+                'myhost2:7777',
+                'myhost3:1111:2222:3333',
                 {
                     'kind': 'NodeSpec',
                     'id': 'migrate1',
                     'type': 'v1-v2-migration-pair',
-                    'origin': 'migrate1a:1111',
-                    'destination': 'migrate1b:11111',
+                    'origin': 'migrate1a:7777',
+                    'destination': 'migrate1b:1111:2222:3333',
                 }
             ]
         }
@@ -154,22 +190,32 @@ class TestNodeUtil(TestCase):
         self.assertEqual(n1.id, 'node1')
         self.assertEqual(n1.type, NodeTypeEnum.V1.value)
         self.assertEqual(n1.host, 'myhost1')
-        self.assertEqual(n1.ui, 1234)
+        self.assertEqual(n1.ui, 7777)
         self.assertEqual((n2 := nodes[1]).type, NodeTypeEnum.V1.value)
-        self.assertEqual(n2.id, 'myhost2:4444')
+        self.assertEqual(n2.id, 'myhost2:7777')
         self.assertEqual(n2.host, 'myhost2')
-        self.assertEqual(n2.ui, 4444)
+        self.assertEqual(n2.ui, 7777)
         self.assertEqual((n3 := nodes[2]).type, NodeTypeEnum.V2.value)
-        self.assertEqual(n3.id, 'myhost3:55555')
+        self.assertEqual(n3.id, 'myhost3:1111:2222:3333')
         self.assertEqual(n3.host, 'myhost3')
-        self.assertEqual(n3.repository, 55555)
+        self.assertEqual(n3.repository, 1111)
+        self.assertEqual(n3.configuration, 2222)
+        self.assertEqual(n3.poller, 3333)
+        self.assertIsNone(n3.crawler)
+        self.assertIsNone(n3.metadata)
+        self.assertIsNone(n3.soap)
         self.assertEqual((n4 := nodes[3]).type, NodeTypeEnum.V1_V2_MIGRATION_PAIR.value)
         self.assertEqual(n4.id, 'migrate1')
         self.assertEqual((n4a := n4.origin).type, NodeTypeEnum.V1.value)
-        self.assertEqual(n4a.id, 'migrate1a:1111')
+        self.assertEqual(n4a.id, 'migrate1a:7777')
         self.assertEqual(n4a.host, 'migrate1a')
-        self.assertEqual(n4a.ui, 1111)
+        self.assertEqual(n4a.ui, 7777)
         self.assertEqual((n4b := n4.destination).type, NodeTypeEnum.V2.value)
-        self.assertEqual(n4b.id, 'migrate1b:11111')
+        self.assertEqual(n4b.id, 'migrate1b:1111:2222:3333')
         self.assertEqual(n4b.host, 'migrate1b')
-        self.assertEqual(n4b.repository, 11111)
+        self.assertEqual(n4b.repository, 1111)
+        self.assertEqual(n4b.configuration, 2222)
+        self.assertEqual(n4b.poller, 3333)
+        self.assertIsNone(n4b.crawler)
+        self.assertIsNone(n4b.metadata)
+        self.assertIsNone(n4b.soap)
