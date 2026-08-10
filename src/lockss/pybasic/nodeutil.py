@@ -150,25 +150,30 @@ class NodeSpec2(BaseNodeSpec):
                                        description="The node's SOAP Compatibility Service REST API Port")
 
     def get_repository_host(self) -> str:
-        return self._generic_get_host(self.repository)
+        return self._get_host(self.repository)
 
     def get_configuration_host(self) -> str:
-        return self._generic_get_host(self.configuration)
+        return self._get_host(self.configuration)
 
     def get_poller_host(self) -> str:
-        return self._generic_get_host(self.poller)
+        return self._get_host(self.poller)
 
     def get_crawler_host(self) -> str:
-        return self._generic_get_host(self.crawler)
+        return self._get_host_or_raise(self.crawler)
 
     def get_metadata_host(self) -> str:
-        return self._generic_get_host(self.metadata)
+        return self._get_host_or_raise(self.metadata)
 
     def get_soap_host(self) -> str:
-        return self._generic_get_host(self.soap)
+        return self._get_host_or_raise(self.soap)
 
-    def _generic_get_host(self, port: Optional[PortNumber]) -> str:
-        return f'{self.protocol}://{self.host}:{port}'
+    def _get_host(self, port: PortNumber) -> str:
+        return f'{self.protocol.value}://{self.host}:{port}'
+
+    def _get_host_or_raise(self, port: Optional[PortNumber]) -> str:
+        if port is None:
+            raise ValueError
+        return self._get_host(port)
 
     @model_validator(mode='before')
     @classmethod

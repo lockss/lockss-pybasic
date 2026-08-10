@@ -32,7 +32,7 @@
 Unit tests for lockss.pybasic.nodeutil.
 """
 
-from typing import Optional
+from typing import Optional, cast
 from unittest import TestCase
 
 from pydantic import ValidationError
@@ -42,7 +42,7 @@ from lockss.pybasic.nodeutil import NodeProtocolEnum, NodeSet, NodeSpec, NodeSpe
 
 class TestNodeUtil(TestCase):
 
-    def test_compact_node_spec(self):
+    def test_compact_node_spec(self) -> None:
         host = 'myhost'
         def _test_compact_node_spec(proto: Optional[NodeProtocolEnum],
                                     repo_or_ui: Optional[str],
@@ -157,7 +157,7 @@ class TestNodeUtil(TestCase):
                                                     for soa in (None, '', '666'):
                                                         _test_compact_node_spec(proto, repo_or_ui, cfg, pol, crw, md, soa)
 
-    def test_node_set(self):
+    def test_node_set(self) -> None:
         data1 = {
             'kind': 'NodeSet',
             'id': 'mynodeset',
@@ -219,3 +219,12 @@ class TestNodeUtil(TestCase):
         self.assertIsNone(n4b.crawler)
         self.assertIsNone(n4b.metadata)
         self.assertIsNone(n4b.soap)
+
+    def test_v2(self) -> None:
+        ns: NodeSpec2 = cast(NodeSpec2, get_node_spec_adapter().validate_python('myhost:1111:2222:3333:4444:5555:6666'))
+        self.assertEqual(ns.get_repository_host(), f'{(proto := ns.protocol.value)}://{(host := ns.host)}:{ns.repository}')
+        self.assertEqual(ns.get_configuration_host(), f'{proto}://{host}:{ns.configuration}')
+        self.assertEqual(ns.get_poller_host(), f'{proto}://{host}:{ns.poller}')
+        self.assertEqual(ns.get_crawler_host(), f'{proto}://{host}:{ns.crawler}')
+        self.assertEqual(ns.get_metadata_host(), f'{proto}://{host}:{ns.metadata}')
+        self.assertEqual(ns.get_soap_host(), f'{proto}://{host}:{ns.soap}')
