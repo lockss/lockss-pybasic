@@ -169,10 +169,11 @@ def click_path(spec: Optional[str]) -> ClickPath:
 #      @h
 #:     def foo():
 #:         pass
-def compose_decorators(*decorators):
+def compose_decorators(*decorators: Optional[Any]):
     def wrapped(decorated):
         for dec in reversed(decorators):
-            decorated = dec(decorated)
+            if decorated:
+                decorated = dec(decorated)
         return decorated
     return wrapped
 
